@@ -213,11 +213,22 @@ function aiFromIngredients()
   $ingredients = array_slice(array_map('strval', $ingredients), 0, 40);
 
   $prefs = loadOrCreatePreferences($db, $userId);
-  $day = strtolower((string)($input['day'] ?? ''));
-  // No specific day = "Any" = no restriction (non-veg allowed).
-  $rules = in_array($day, WEEKDAY_KEYS, true)
-    ? $prefs['day_rules'][$day]
-    : ['diet' => 'nonveg', 'egg' => 1, 'onion' => 1, 'garlic' => 1];
+  // Explicit diet/onion/garlic selection wins; else fall back to a day's rules;
+  // else default to vegetarian with onion/garlic allowed.
+  if (isset($input['diet']) && in_array($input['diet'], ['veg', 'egg', 'nonveg'], true)) {
+    $diet = $input['diet'];
+    $rules = [
+      'diet'   => $diet,
+      'egg'    => $diet === 'veg' ? 0 : 1,
+      'onion'  => array_key_exists('onion', $input) ? (int)!!$input['onion'] : 1,
+      'garlic' => array_key_exists('garlic', $input) ? (int)!!$input['garlic'] : 1,
+    ];
+  } else {
+    $day = strtolower((string)($input['day'] ?? ''));
+    $rules = in_array($day, WEEKDAY_KEYS, true)
+      ? $prefs['day_rules'][$day]
+      : ['diet' => 'veg', 'egg' => 0, 'onion' => 1, 'garlic' => 1];
+  }
 
   $ai = new AIClient();
   if (!$ai->isConfigured()) {

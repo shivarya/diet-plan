@@ -148,10 +148,13 @@ class ApiService {
   }
 
   // --- AI (premium) ---
-  async cookFromIngredients(ingredients: string[], day?: string) {
+  async cookFromIngredients(
+    ingredients: string[],
+    opts?: { diet?: string; onion?: number; garlic?: number },
+  ) {
     const res = await this.api.post<ApiResponse<IngredientDish>>('/ai/from-ingredients', {
       ingredients,
-      day,
+      ...opts,
     });
     return res.data;
   }

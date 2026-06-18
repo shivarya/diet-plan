@@ -14,16 +14,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ApiService from '../services/api';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { IngredientDish, WEEKDAYS, Weekday } from '../types';
+import { IngredientDish, DietType } from '../types';
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+const DIET_OPTIONS: { value: DietType; label: string }[] = [
+  { value: 'veg', label: 'Veg' },
+  { value: 'egg', label: 'Egg' },
+  { value: 'nonveg', label: 'Non-veg' },
+];
 
 export default function CookFromIngredientsScreen() {
   const { colors } = useTheme();
   const { isPremium } = useAuth();
   const [text, setText] = useState('');
   const [items, setItems] = useState<string[]>([]);
-  const [day, setDay] = useState<Weekday | undefined>(undefined);
+  const [diet, setDiet] = useState<DietType>('veg');
+  const [noOnion, setNoOnion] = useState(false);
+  const [noGarlic, setNoGarlic] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dish, setDish] = useState<IngredientDish | null>(null);
 
@@ -43,7 +51,11 @@ export default function CookFromIngredientsScreen() {
     setBusy(true);
     setDish(null);
     try {
-      const res = await ApiService.cookFromIngredients(items, day);
+      const res = await ApiService.cookFromIngredients(items, {
+        diet,
+        onion: noOnion ? 0 : 1,
+        garlic: noGarlic ? 0 : 1,
+      });
       if (res.success) setDish(res.data);
     } catch (e: any) {
       Alert.alert('Could not suggest', e?.response?.data?.error || e?.message || 'Try again');
@@ -70,7 +82,7 @@ export default function CookFromIngredientsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.h1, { color: colors.text }]}>Cook from ingredients</Text>
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          Add what you have. The dish respects the selected day's egg/onion/garlic rules.
+          Add what you have and pick the food type — the dish will respect it.
         </Text>
 
         <View style={styles.inputRow}>
@@ -96,25 +108,38 @@ export default function CookFromIngredientsScreen() {
           ))}
         </View>
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>Apply a day's rules (optional)</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Food type</Text>
+        <View style={styles.dayWrap}>
+          {DIET_OPTIONS.map((opt) => {
+            const active = diet === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[styles.dayChip, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.badgeBg : 'transparent' }]}
+                onPress={() => setDiet(opt.value)}
+              >
+                <Text style={{ color: active ? colors.primary : colors.textSecondary, fontWeight: '700', fontSize: 12 }}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Avoid (optional)</Text>
         <View style={styles.dayWrap}>
           <TouchableOpacity
-            style={[styles.dayChip, { borderColor: !day ? colors.primary : colors.border }]}
-            onPress={() => setDay(undefined)}
+            style={[styles.dayChip, { borderColor: noOnion ? colors.primary : colors.border, backgroundColor: noOnion ? colors.badgeBg : 'transparent' }]}
+            onPress={() => setNoOnion((v) => !v)}
           >
-            <Text style={{ color: !day ? colors.primary : colors.textSecondary, fontWeight: '700', fontSize: 12 }}>Any</Text>
+            <Text style={{ color: noOnion ? colors.primary : colors.textSecondary, fontWeight: '700', fontSize: 12 }}>No onion</Text>
           </TouchableOpacity>
-          {WEEKDAYS.map((d) => (
-            <TouchableOpacity
-              key={d}
-              style={[styles.dayChip, { borderColor: day === d ? colors.primary : colors.border }]}
-              onPress={() => setDay(d)}
-            >
-              <Text style={{ color: day === d ? colors.primary : colors.textSecondary, fontWeight: '700', fontSize: 12 }}>
-                {cap(d).slice(0, 3)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <TouchableOpacity
+            style={[styles.dayChip, { borderColor: noGarlic ? colors.primary : colors.border, backgroundColor: noGarlic ? colors.badgeBg : 'transparent' }]}
+            onPress={() => setNoGarlic((v) => !v)}
+          >
+            <Text style={{ color: noGarlic ? colors.primary : colors.textSecondary, fontWeight: '700', fontSize: 12 }}>No garlic</Text>
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity style={[styles.suggestBtn, { backgroundColor: colors.primary }]} onPress={suggest} disabled={busy}>
