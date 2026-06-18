@@ -1,0 +1,240 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Switch,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import ApiService from '../services/api';
+import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
+import { DietaryPreferences, WEEKDAYS, Weekday } from '../types';
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+export default function SettingsScreen() {
+  const { colors, theme, setTheme } = useTheme();
+  const { user, isPremium, logout, setUserLocal } = useAuth();
+  const [prefs, setPrefs] = useState<DietaryPreferences | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    ApiService.getPreferences()
+      .then((res) => setPrefs(res.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const setRule = (day: Weekday, key: 'egg' | 'onion' | 'garlic', value: boolean) => {
+    setPrefs((p) =>
+      p
+        ? { ...p, day_rules: { ...p.day_rules, [day]: { ...p.day_rules[day], [key]: value ? 1 : 0 } } }
+        : p,
+    );
+  };
+
+  const setNum = (key: keyof DietaryPreferences, value: string) => {
+    const n = parseInt(value.replace(/[^0-9]/g, ''), 10);
+    setPrefs((p) => (p ? { ...p, [key]: isNaN(n) ? 0 : n } : p));
+  };
+
+  const save = async () => {
+    if (!prefs) return;
+    setSaving(true);
+    try {
+      const res = await ApiService.updatePreferences(prefs);
+      if (res.success) {
+        setPrefs(res.data);
+        Alert.alert('Saved', 'Your preferences were updated. Regenerate your week to apply them.');
+      }
+    } catch (e: any) {
+      Alert.alert('Could not save', e?.response?.data?.error || e?.message || 'Try again');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const togglePremium = async (value: boolean) => {
+    try {
+      const res = await ApiService.setPremium(value);
+      if (res.success && res.data) setUserLocal(res.data);
+    } catch (e: any) {
+      Alert.alert('Could not update', e?.response?.data?.error || e?.message || 'Try again');
+    }
+  };
+
+  if (loading || !prefs) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={[styles.h1, { color: colors.text }]}>Settings</Text>
+        {user ? (
+          <Text style={[styles.account, { color: colors.textSecondary }]}>{user.email}</Text>
+        ) : null}
+
+        {/* Per-day rules */}
+        <Text style={[styles.section, { color: colors.text }]}>Daily rules</Text>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>
+          Toggle whether egg, onion and garlic are allowed on each day. Defaults: no egg on Tue/Thu/Sat,
+          no onion/garlic on Thursday.
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.ruleHeader}>
+            <Text style={[styles.ruleHeaderDay, { color: colors.textSecondary }]}>Day</Text>
+            <View style={styles.ruleHeaderCols}>
+              <Text style={[styles.ruleCol, { color: colors.textSecondary }]}>Egg</Text>
+              <Text style={[styles.ruleCol, { color: colors.textSecondary }]}>Onion</Text>
+              <Text style={[styles.ruleCol, { color: colors.textSecondary }]}>Garlic</Text>
+            </View>
+          </View>
+          {WEEKDAYS.map((day) => (
+            <View key={day} style={[styles.ruleRow, { borderTopColor: colors.border }]}>
+              <Text style={[styles.ruleDay, { color: colors.text }]}>{cap(day)}</Text>
+              <View style={styles.ruleHeaderCols}>
+                <View style={styles.ruleCol}>
+                  <Switch
+                    value={prefs.day_rules[day].egg === 1}
+                    onValueChange={(v) => setRule(day, 'egg', v)}
+                    trackColor={{ true: colors.primary }}
+                  />
+                </View>
+                <View style={styles.ruleCol}>
+                  <Switch
+                    value={prefs.day_rules[day].onion === 1}
+                    onValueChange={(v) => setRule(day, 'onion', v)}
+                    trackColor={{ true: colors.primary }}
+                  />
+                </View>
+                <View style={styles.ruleCol}>
+                  <Switch
+                    value={prefs.day_rules[day].garlic === 1}
+                    onValueChange={(v) => setRule(day, 'garlic', v)}
+                    trackColor={{ true: colors.primary }}
+                  />
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Nutrition targets */}
+        <Text style={[styles.section, { color: colors.text }]}>Daily targets</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <NumberField label="Calorie target (kcal)" value={prefs.daily_calorie_target} onChange={(v) => setNum('daily_calorie_target', v)} />
+          <NumberField label="Protein floor (g)" value={prefs.protein_floor_g} onChange={(v) => setNum('protein_floor_g', v)} />
+          <NumberField label="Carb ceiling (g)" value={prefs.carb_ceiling_g} onChange={(v) => setNum('carb_ceiling_g', v)} />
+          <NumberField label="Calcium target (mg)" value={prefs.calcium_target_mg} onChange={(v) => setNum('calcium_target_mg', v)} />
+        </View>
+
+        {/* Kid */}
+        <Text style={[styles.section, { color: colors.text }]}>Kid at home</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.rowBetween}>
+            <Text style={[styles.label, { color: colors.text }]}>Add a kid-friendly item each day</Text>
+            <Switch
+              value={prefs.has_kid === 1}
+              onValueChange={(v) => setPrefs((p) => (p ? { ...p, has_kid: v ? 1 : 0 } : p))}
+              trackColor={{ true: colors.primary }}
+            />
+          </View>
+          {prefs.has_kid === 1 && (
+            <NumberField label="Kid age" value={prefs.kid_age ?? 0} onChange={(v) => setNum('kid_age', v)} />
+          )}
+        </View>
+
+        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={save} disabled={saving}>
+          <Text style={[styles.saveText, { color: colors.onPrimary }]}>{saving ? 'Saving…' : 'Save preferences'}</Text>
+        </TouchableOpacity>
+
+        {/* Appearance */}
+        <Text style={[styles.section, { color: colors.text }]}>Appearance</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.themeRow}>
+            {(['light', 'dark', 'auto'] as const).map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.themeChip, { borderColor: theme === t ? colors.primary : colors.border }]}
+                onPress={() => setTheme(t)}
+              >
+                <Text style={{ color: theme === t ? colors.primary : colors.textSecondary, fontWeight: '700' }}>{cap(t)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Premium dev switch */}
+        <Text style={[styles.section, { color: colors.text }]}>Premium (AI features)</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={[styles.label, { color: colors.text }]}>Enable premium (dev)</Text>
+              <Text style={[styles.hint, { color: colors.textSecondary, marginTop: 2 }]}>
+                Unlocks AI-generated plans and “Cook from ingredients”. Billing comes later.
+              </Text>
+            </View>
+            <Switch value={isPremium} onValueChange={togglePremium} trackColor={{ true: colors.primary }} />
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.logout} onPress={logout}>
+          <Text style={[styles.logoutText, { color: colors.error }]}>Log out</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: string) => void }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.rowBetween}>
+      <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
+      <TextInput
+        style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+        keyboardType="number-pad"
+        value={String(value)}
+        onChangeText={onChange}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  content: { padding: 20, paddingBottom: 48 },
+  h1: { fontSize: 28, fontWeight: '800' },
+  account: { fontSize: 13, marginTop: 2 },
+  section: { fontSize: 16, fontWeight: '700', marginTop: 24, marginBottom: 6 },
+  hint: { fontSize: 12, lineHeight: 18, marginBottom: 8 },
+  card: { borderRadius: 14, borderWidth: 1, padding: 14 },
+  ruleHeader: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8 },
+  ruleHeaderDay: { flex: 1, fontSize: 12, fontWeight: '700' },
+  ruleHeaderCols: { flexDirection: 'row', width: 200, justifyContent: 'space-between' },
+  ruleCol: { width: 60, alignItems: 'center', fontSize: 12, fontWeight: '700' },
+  ruleRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, paddingVertical: 6 },
+  ruleDay: { flex: 1, fontSize: 14, fontWeight: '600' },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
+  label: { fontSize: 14, fontWeight: '600' },
+  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, minWidth: 90, textAlign: 'right' },
+  saveBtn: { marginTop: 20, paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
+  saveText: { fontSize: 16, fontWeight: '700' },
+  themeRow: { flexDirection: 'row', gap: 10 },
+  themeChip: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+  logout: { marginTop: 28, alignItems: 'center', paddingVertical: 12 },
+  logoutText: { fontSize: 15, fontWeight: '700' },
+});

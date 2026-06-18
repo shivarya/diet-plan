@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Diet Plan",
+    "slug": "diet-plan-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "dietplan",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0E1B12"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.shivarya.dietplan"
+    },
+    "android": {
+      "package": "dev.shivarya.dietplan",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundColor": "#0E1B12"
+      },
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": ["@react-native-google-signin/google-signin"],
+    "extra": {
+      "apiUrl": "https://shivarya.dev/diet_plan",
+      "apiUrlDev": "http://localhost:8000",
+      "googleClientId": "",
+      "enableApiDebug": true
+    }
+  }
+}

@@ -1,0 +1,22 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="leaf2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3FB37A"/>
+      <stop offset="1" stop-color="#1E7D52"/>
+    </linearGradient>
+  </defs>
+
+  <!-- plate -->
+  <circle cx="256" cy="256" r="168" fill="#FFFFFF"/>
+  <circle cx="256" cy="256" r="168" fill="none" stroke="#9BE3BE" stroke-width="10"/>
+  <circle cx="256" cy="256" r="126" fill="none" stroke="#E7F2EB" stroke-width="6"/>
+
+  <!-- main leaf -->
+  <path d="M256 150 C320 192 320 300 256 354 C192 300 192 192 256 150 Z" fill="url(#leaf2)"/>
+  <path d="M256 168 L256 340" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" opacity="0.85"/>
+  <path d="M256 214 L298 192 M256 214 L214 192 M256 262 L302 240 M256 262 L210 240 M256 310 L294 290 M256 310 L218 290"
+        stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- accent leaf -->
+  <path d="M346 206 C370 224 370 264 340 286 C326 256 328 224 346 206 Z" fill="#9BE3BE"/>
+</svg>

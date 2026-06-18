@@ -1,0 +1,15 @@
+{
+  "name": "diet-plan/server",
+  "description": "PHP REST API for the Diet Plan App",
+  "type": "project",
+  "require": {
+    "php": ">=8.0",
+    "firebase/php-jwt": "^6.0",
+    "google/apiclient": "^2.0"
+  },
+  "config": {
+    "audit": {
+      "block-insecure": false
+    }
+  }
+}

@@ -1,0 +1,38 @@
+# Diet Plan API — deployed under the shivarya.dev docroot at /diet_plan/.
+RewriteEngine On
+
+# Subfolder base (the app lives at https://shivarya.dev/diet_plan/).
+RewriteBase /diet_plan/
+
+# Force HTTPS in production.
+RewriteCond %{HTTPS} off
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Pass the Authorization header through to PHP (some hosts strip it).
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Route everything that is not a real file/dir to the front controller.
+# Absolute target so the parent docroot's SPA catch-all does not shadow us.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ /diet_plan/index.php [QSA,L]
+
+# Security headers (CORS is set by index.php, not here, to avoid duplicate headers).
+<IfModule mod_headers.c>
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Never serve secrets, the error log, or composer/vcs metadata.
+<FilesMatch "^(\.env.*|composer\.(json|lock)|php_errors\.log)$">
+  Require all denied
+</FilesMatch>
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# Disable directory listing.
+Options -Indexes

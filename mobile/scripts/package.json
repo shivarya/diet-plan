@@ -1,0 +1,9 @@
+{
+  "name": "diet-plan-icon-tools",
+  "private": true,
+  "description": "Local-only deps for scripts/generate-icons.js (not part of the app bundle).",
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "sharp": "^0.33.5"
+  }
+}

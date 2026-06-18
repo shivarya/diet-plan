@@ -1,0 +1,38 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E7D52"/>
+      <stop offset="1" stop-color="#3FB37A"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3FB37A"/>
+      <stop offset="1" stop-color="#1E7D52"/>
+    </linearGradient>
+  </defs>
+
+  <!-- rounded tile background -->
+  <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
+
+  <!-- plate -->
+  <circle cx="256" cy="262" r="150" fill="#FFFFFF"/>
+  <circle cx="256" cy="262" r="150" fill="none" stroke="#E7F2EB" stroke-width="10"/>
+  <circle cx="256" cy="262" r="112" fill="none" stroke="#E7F2EB" stroke-width="6"/>
+
+  <!-- main leaf -->
+  <path d="M256 168 C312 206 312 300 256 348 C200 300 200 206 256 168 Z" fill="url(#leaf)"/>
+  <path d="M256 184 L256 336" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" opacity="0.85"/>
+  <path d="M256 226 L294 206 M256 226 L218 206 M256 268 L298 248 M256 268 L214 248 M256 310 L290 292 M256 310 L222 292"
+        stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- small accent leaf -->
+  <path d="M338 210 C360 226 360 262 332 282 C320 254 322 226 338 210 Z" fill="#9BE3BE" opacity="0.95"/>
+
+  <!-- fork -->
+  <g stroke="#1E7D52" stroke-width="9" stroke-linecap="round" fill="none">
+    <path d="M150 196 L150 250"/>
+    <path d="M168 196 L168 250"/>
+    <path d="M186 196 L186 250"/>
+    <path d="M168 250 C168 270 168 270 168 330"/>
+    <path d="M150 250 C150 262 186 262 186 250" />
+  </g>
+</svg>

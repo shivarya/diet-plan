@@ -1,0 +1,18 @@
+# Server
+server/.env
+server/.env.production
+server/vendor/
+server/php_errors.log
+
+# Mobile
+mobile/node_modules/
+mobile/scripts/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/android/
+mobile/ios/
+
+# OS / editor
+.DS_Store
+*.log
+Thumbs.db
