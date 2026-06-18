@@ -23,17 +23,25 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundColor": "#0E1B12"
       },
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
     },
-    "plugins": ["@react-native-google-signin/google-signin"],
+    "plugins": [
+      "@react-native-google-signin/google-signin"
+    ],
     "extra": {
       "apiUrl": "https://shivarya.dev/diet_plan",
-      "apiUrlDev": "http://localhost:8000",
-      "googleClientId": "",
-      "enableApiDebug": true
+      "apiUrlDev": "https://shivarya.dev/diet_plan",
+      "googleClientId": "1080529324514-2u1di0ifr6i7el6og2ef9258s1hf3bg4.apps.googleusercontent.com",
+      "enableApiDebug": true,
+      "eas": {
+        "projectId": "22ff1e9a-f332-4acd-98bf-032e3150c4b6"
+      }
     }
   }
 }
