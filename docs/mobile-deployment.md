@@ -14,27 +14,40 @@ Build and publish the Android app to the Google Play Store.
 
 ---
 
-## 1. Configure production API + Google Sign-In
+## 1. Get your API keys
 
-In `app.json` → `extra`, set:
+### 1a. Groq API key (AI features — server-side)
+
+The Groq key lives in the **server** `.env`, not in the mobile app. If you haven't set it up yet, follow [docs/server-deployment.md §5a](server-deployment.md#5a-groq-api-key-ai-features).
+
+### 1b. Google OAuth Client IDs (Google Sign-In)
+
+You need **two** client IDs from Google Cloud Console: a **Web** client ID for the server (to verify tokens server-side) and an **Android** client ID for the app (to initiate sign-in). Follow [docs/server-deployment.md §5b](server-deployment.md#5b-google-oauth-web-client-id-google-sign-in) first to create the OAuth consent screen and the Web client ID, then come back here for the Android one.
+
+**Creating the Android client ID:**
+
+> You need the SHA-1 fingerprint of your keystore first — do §3 (Keystore) before this step.
+
+1. **[Google Cloud Console](https://console.cloud.google.com)** → same project as §5b in the server guide
+2. **APIs & Services → Credentials → + Create Credentials → OAuth 2.0 Client ID**
+   - Application type: **Android**
+   - Package name: `dev.shivarya.dietplan`
+   - SHA-1 certificate fingerprint: paste from `eas credentials --platform android`
+   - Click **Create** → copy the **Client ID**
+3. In `mobile/app.json` → `extra`, set:
 
 ```json
 {
   "apiUrl": "https://shivarya.dev/diet_plan",
-  "googleClientId": "<your Web client ID from Google Cloud Console>"
+  "googleClientId": "<Android client ID from above>"
 }
 ```
 
-**Getting a Google Client ID:**
-1. [Google Cloud Console](https://console.cloud.google.com) → select/create a project
-2. APIs & Services → Credentials → Create OAuth 2.0 Client ID
-3. Application type: **Android** for the Play Store build; **Web** for the server's `GOOGLE_CLIENT_ID` (used to verify ID tokens)
-4. Android client ID needs your app's SHA-1 fingerprint (see §3)
-5. Also add the `googleClientId` to `server/.env` → `GOOGLE_CLIENT_ID` on the server
+4. Add the Android client ID to the server `.env` as `GOOGLE_ALLOWED_AUDIENCES` (comma-separated list) so the server accepts tokens issued to it.
 
 ---
 
-## 2. Run EAS build configuration
+## 2. Configure EAS
 
 `eas.json` is already present. Review it:
 

@@ -49,7 +49,35 @@ Already in the bundle. It uses `RewriteBase /diet_plan/` and routes to the **abs
 
 These names must match the `.env` below (or edit `.env` to match what you created).
 
-## 5. Configure `.env` on the host
+## 5. Get your API keys
+
+### 5a. Groq API key (AI features)
+
+1. Go to **[console.groq.com](https://console.groq.com)** and sign up (free).
+2. In the sidebar: **API Keys → Create API Key** — give it a name (e.g. `diet-plan-prod`).
+3. Copy the key immediately (it's only shown once). It starts with `gsk_…`.
+4. Paste it as `GROQ_API_KEY` in `.env` below.
+
+> **Free tier limits:** 30 requests/min, 6 000 tokens/min, 500 000 tokens/day — more than enough for a personal app. No credit card required.
+
+### 5b. Google OAuth Web Client ID (Google Sign-In)
+
+The server uses a **Web** client ID to verify Google ID tokens. The Android app uses a separate **Android** client ID to sign in (set up when you do the mobile build — see [mobile-deployment.md](mobile-deployment.md)).
+
+1. Open **[Google Cloud Console](https://console.cloud.google.com)** → create or select a project (e.g. `Diet Plan`).
+2. **APIs & Services → OAuth consent screen**
+   - User type: **External**
+   - App name: `Diet Plan`, support email: your Gmail
+   - Scopes: add `email` and `profile`
+   - Save and continue (no need to publish for personal use — leave in Testing and add your Gmail as a test user)
+3. **APIs & Services → Credentials → + Create Credentials → OAuth 2.0 Client ID**
+   - Application type: **Web application**
+   - Name: `Diet Plan Web`
+   - Authorised JavaScript origins: `https://shivarya.dev`
+   - Click **Create** → copy the **Client ID** (ends in `.apps.googleusercontent.com`)
+4. Paste it as `GOOGLE_CLIENT_ID` in `.env` below.
+
+## 6. Configure `.env` on the host
 
 Create `~/public_html/shivarya.dev/diet_plan/.env` (never upload your local one):
 
@@ -63,17 +91,17 @@ DB_PASS=<the password you generated>
 JWT_SECRET=<run: php -r "echo bin2hex(random_bytes(32));">
 ALLOW_DEV_LOGIN=false
 
-GOOGLE_CLIENT_ID=<your Google Web client ID>
-GOOGLE_ALLOWED_AUDIENCES=<optional native client IDs, comma-separated>
+GOOGLE_CLIENT_ID=<Web client ID from step 5b>
+GOOGLE_ALLOWED_AUDIENCES=<Android client ID from mobile build — comma-separated, optional>
 
 AI_PROVIDER=groq
 AI_MODEL=llama-3.3-70b-versatile
-GROQ_API_KEY=<free Groq key — optional; without it AI falls back to the rule engine>
+GROQ_API_KEY=<key from step 5a — optional; without it AI falls back to the rule engine>
 ```
 
 Then lock it down: `chmod 600 .env` (files `644`, dirs `755`).
 
-## 6. Import schema + seed recipes
+## 7. Import schema + seed recipes
 
 ```bash
 cd ~/public_html/shivarya.dev/diet_plan
@@ -83,7 +111,7 @@ php scripts/seed.php                                                          # 
 
 Creates 5 tables: `users`, `recipes`, `dietary_preferences`, `meal_plans`, `meal_plan_items`.
 
-## 7. Verify
+## 8. Verify
 
 ```powershell
 Invoke-RestMethod https://shivarya.dev/diet_plan/health        # { success: true, ... }  (works before DB exists)
@@ -91,7 +119,7 @@ Invoke-RestMethod https://shivarya.dev/diet_plan/health        # { success: true
 - `GET /diet_plan/recipes` with **no** token must return **401 JSON** — that proves routing reaches `index.php` and the SPA isn't shadowing it (if you get HTML, you deployed to the wrong folder).
 - With a Bearer token: `POST /diet_plan/meal-plans/generate?mode=rule` returns a full week; confirm **Thursday has no egg/onion/garlic** and Tue/Thu/Sat have no egg.
 
-## 8. Point the mobile app at production
+## 9. Point the mobile app at production
 
 In `mobile/app.json` → `extra`: `apiUrl` is already `https://shivarya.dev/diet_plan`; set `googleClientId` to your Web client ID, then build with EAS.
 
