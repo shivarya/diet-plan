@@ -26,7 +26,8 @@
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE"
-      ]
+      ],
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/images/favicon.png"

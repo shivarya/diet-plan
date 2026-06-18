@@ -92,11 +92,22 @@ eas build --platform android --profile preview
 ```
 
 ### Production AAB (Play Store upload)
-```powershell
-eas build --platform android --profile production
-```
 
-EAS builds in the cloud and emails you a download link when done (~10–15 min). Download the `.aab` for Play Store upload.
+**Before building, add a `CHANGELOG.md` entry** for the new features/fixes (see §4a). Then:
+```powershell
+npm run build:production
+```
+This **bumps the version** (`release-version.json` patch + versionCode → synced into `package.json`, `app.json` and `android/app/build.gradle`) and starts the EAS cloud production build. EAS emails a download link when done (~10–15 min); download the `.aab` for the Play Store.
+
+> Plain `eas build --platform android --profile production` still works but skips the version bump.
+
+### 4a. Versioning & changelog
+
+`release-version.json` (`{ version, versionCode }`) is the single source of truth.
+
+- **Every feature/fix:** add an entry to `mobile/CHANGELOG.md` under a new `## [x.y.z] - YYYY-MM-DD` heading (sections: Added / Changed / Fixed, plus **Google Play Notes** for the store "What's new").
+- **Release:** `npm run build:production` bumps the patch automatically. For a minor/major bump, edit `release-version.json` first, then `npm run version:sync:config`.
+- For a **local** AAB instead of the cloud: `npm run build:production:local:aab` (needs the Android SDK + `gradlew`).
 
 ---
 

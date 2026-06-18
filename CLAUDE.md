@@ -56,7 +56,10 @@ npm run typecheck                                  # tsc --noEmit
 npm run generate-icons                             # regenerate Play Store assets from assets/images/*.svg (or root play-store-assets skill)
 npm start                                          # Expo dev server
 npm run android                                    # build + install on Android emulator (expo run:android; needs a dev build, not Expo Go)
+npm run build:production                            # bump version (release-version.json → app.json/build.gradle) + EAS prod build
 ```
+
+**Releases**: `release-version.json` (`{version, versionCode}`) is the source of truth; `npm run version:bump:production` bumps patch + versionCode and syncs them. Add a `mobile/CHANGELOG.md` entry per feature/fix before bumping (same pattern as `expense-tracker`). See [docs/mobile-deployment.md](docs/mobile-deployment.md) §4–4a.
 
 ---
 

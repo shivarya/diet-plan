@@ -9,7 +9,12 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "generate-icons": "node scripts/generate-icons.js"
+    "generate-icons": "node scripts/generate-icons.js",
+    "version:sync:config": "node ./scripts/sync-app-version.js",
+    "version:bump:production": "node ./scripts/bump-release-version.js && node ./scripts/sync-app-version.js",
+    "build:production": "npm run version:bump:production && npx eas build --platform android --profile production --non-interactive --no-wait",
+    "build:production:local:aab": "npm run version:bump:production && cd android && gradlew.bat bundleRelease && cd .. && node ./scripts/print-aab-path.js",
+    "build:production:local:aab:no-bump": "npm run version:sync:config && cd android && gradlew.bat bundleRelease && cd .. && node ./scripts/print-aab-path.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^1.23.0",
