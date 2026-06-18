@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../vendor/autoload.php'; // Google API client for ID token verification
+require_once __DIR__ . '/../utils/access.php';    // premium email allowlist
 
 function handleAuthRoutes($uri, $method)
 {
@@ -35,7 +36,7 @@ function setPremium()
     $db = getDB();
     $db->execute("UPDATE users SET is_premium = ?, updated_at = NOW() WHERE id = ?", [$enabled, $userId]);
     $user = $db->fetchOne("SELECT * FROM users WHERE id = ?", [$userId]);
-    Response::success($user, 'Premium status updated');
+    Response::success(applyPremiumFlag($user), 'Premium status updated');
   } catch (Exception $e) {
     error_log('setPremium error: ' . $e->getMessage());
     Response::error('Failed to update premium status', 500);
@@ -181,7 +182,7 @@ function googleLogin()
     // Our own JWT (not Google's token)
     $token = JWTHandler::generate($user['id'], $user['email'], $user['name']);
 
-    Response::success(['token' => $token, 'user' => $user], 'Google login successful');
+    Response::success(['token' => $token, 'user' => applyPremiumFlag($user)], 'Google login successful');
   } catch (Exception $e) {
     error_log("Google login error: " . $e->getMessage());
     Response::error('Google login failed', 500);
@@ -199,7 +200,7 @@ function getMe()
       Response::error('User not found', 404);
     }
 
-    Response::success($user, 'User data retrieved');
+    Response::success(applyPremiumFlag($user), 'User data retrieved');
   } catch (Exception $e) {
     Response::error('Failed to get user: ' . $e->getMessage(), 500);
   }

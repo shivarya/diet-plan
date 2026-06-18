@@ -120,7 +120,7 @@ export default function RecipeDetailScreen() {
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
-      <RecipeImage recipe={recipe} style={styles.hero} rounded={16} fontSize={48} />
+      <RecipeImage recipe={recipe} style={styles.hero} rounded={16} fontSize={72} kind="hero" />
 
       <Text style={[styles.title, { color: colors.text }]}>{recipe.name}</Text>
       <Text style={[styles.sub, { color: colors.textSecondary }]}>

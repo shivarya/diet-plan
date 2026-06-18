@@ -5,36 +5,34 @@ import { Image } from 'expo-image';
 import { useTheme } from '../contexts/ThemeContext';
 import { Recipe } from '../types';
 
-type ImgRecipe = Pick<Recipe, 'id' | 'name' | 'image_url' | 'dish_category'>;
+type ImgRecipe = Pick<Recipe, 'id' | 'name' | 'image_url' | 'dish_category' | 'food_type'>;
 
-// A reliable food anchor per category so every dish resolves to a real photo.
-const CATEGORY_ANCHOR: Record<string, string> = {
-  bread: 'roti',
-  rice: 'rice',
-  beverage: 'drink',
-  snack: 'snack',
-};
+/** A food emoji that suits the dish — used for the reliable, no-network tile. */
+function emojiFor(recipe: ImgRecipe): string {
+  if (recipe.dish_category === 'bread') return '🫓';
+  if (recipe.dish_category === 'rice') return '🍚';
+  if (recipe.dish_category === 'beverage') return '🥤';
+  if (recipe.food_type === 'nonveg') return '🍗';
+  if (recipe.food_type === 'egg') return '🍳';
+  if (recipe.dish_category === 'snack') return '🥪';
+  return '🍲';
+}
 
 /**
- * Resolve a dish photo URL. A curated `image_url` from the DB wins; otherwise we
- * build a keyword-matched free food photo, stable per recipe id so every dish gets
- * a distinct picture. We use loremflickr's `/all` (match ANY tag) — matching ALL
- * tags finds nothing and returns the same grey defaultImage for every dish. The
- * dish words bias relevance; the category/'food' anchors guarantee a real match.
- * If it still fails to load, the caller renders a themed initial placeholder.
- * expo-image caches results on disk.
+ * The image source for a given use:
+ *  - a curated DB `image_url` always wins (and is fast/self-hosted);
+ *  - the hero (one image per screen) otherwise uses Pollinations to AI-generate the
+ *    actual dish — deterministic per recipe id;
+ *  - thumbnails return null and fall back to the emoji tile, because fetching ~20
+ *    remote images at once gets rate-limited by any free service.
  */
-function buildPhotoUrl(recipe: ImgRecipe): string {
+function remoteUrl(recipe: ImgRecipe, kind: 'thumb' | 'hero'): string | null {
   if (recipe.image_url) return recipe.image_url;
-  const words = recipe.name
-    .toLowerCase()
-    .replace(/[^a-z ]/g, '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2);
-  const anchor = CATEGORY_ANCHOR[recipe.dish_category ?? ''] ?? 'curry';
-  const tags = Array.from(new Set([...words, anchor, 'food'])).join(',');
-  return `https://loremflickr.com/300/300/${encodeURIComponent(tags)}/all?lock=${recipe.id || 1}`;
+  if (kind === 'hero') {
+    const prompt = encodeURIComponent(`${recipe.name}, indian dish, appetizing food photography`);
+    return `https://image.pollinations.ai/prompt/${prompt}?width=600&height=400&nologo=true&seed=${recipe.id || 1}`;
+  }
+  return null;
 }
 
 export default function RecipeImage({
@@ -42,29 +40,31 @@ export default function RecipeImage({
   style,
   rounded = 12,
   fontSize = 22,
+  kind = 'thumb',
 }: {
   recipe: ImgRecipe;
   style?: StyleProp<ViewStyle>;
   rounded?: number;
   fontSize?: number;
+  kind?: 'thumb' | 'hero';
 }) {
   const { colors } = useTheme();
   const [failed, setFailed] = useState(false);
-  const letter = (recipe.name?.trim()?.[0] || '?').toUpperCase();
+  const url = failed ? null : remoteUrl(recipe, kind);
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.badgeBg, borderRadius: rounded }, style]}>
-      {failed ? (
-        <Text style={{ color: colors.primary, fontWeight: '800', fontSize }}>{letter}</Text>
-      ) : (
+      {url ? (
         <Image
-          source={{ uri: buildPhotoUrl(recipe) }}
+          source={{ uri: url }}
           style={[StyleSheet.absoluteFill, { borderRadius: rounded }]}
           contentFit="cover"
           transition={200}
           cachePolicy="disk"
           onError={() => setFailed(true)}
         />
+      ) : (
+        <Text style={{ fontSize }}>{emojiFor(recipe)}</Text>
       )}
     </View>
   );

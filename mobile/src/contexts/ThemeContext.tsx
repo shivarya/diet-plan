@@ -43,20 +43,21 @@ const lightColors: ThemeColors = {
   badgeBg: '#E7F2EB',
 };
 
+// Modern neutral-dark palette — near-black greys with green only as the accent.
 const darkColors: ThemeColors = {
-  background: '#0E1B12',
-  surface: '#15241A',
-  card: '#1A2C20',
-  text: '#EAF3EC',
-  textSecondary: '#8FA897',
-  primary: '#3FB37A',
-  onPrimary: '#08130C',
-  success: '#3FB37A',
-  error: '#E36868',
-  warning: '#E7A24E',
-  info: '#64B5F6',
-  border: '#26392B',
-  badgeBg: '#1F3527',
+  background: '#0F1115',
+  surface: '#181B20',
+  card: '#1C2026',
+  text: '#ECEDEE',
+  textSecondary: '#9AA0A6',
+  primary: '#41C083', // green accent
+  onPrimary: '#04130B',
+  success: '#41C083',
+  error: '#E5484D',
+  warning: '#E6A23C',
+  info: '#5B9DF9',
+  border: '#282C32',
+  badgeBg: '#18271E', // subtle green-tinted chip background
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);

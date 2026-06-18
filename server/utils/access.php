@@ -1,13 +1,49 @@
 <?php
 /**
  * Premium feature gate. For v1 this is a simple per-user flag (users.is_premium)
- * toggled in the app's dev settings — no real billing yet.
+ * toggled in the app's dev settings — no real billing yet. In addition, specific
+ * emails listed in the PREMIUM_EMAILS env var (comma-separated) are always treated
+ * as premium, so you can comp friends/family before payments exist.
  */
+
+/** Lower-cased set of comped premium emails from the PREMIUM_EMAILS env var. */
+function premiumEmailAllowlist(): array
+{
+  $raw = getenv('PREMIUM_EMAILS') ?: ($_ENV['PREMIUM_EMAILS'] ?? '');
+  $out = [];
+  foreach (explode(',', strtolower((string)$raw)) as $e) {
+    $e = trim($e);
+    if ($e !== '') {
+      $out[] = $e;
+    }
+  }
+  return $out;
+}
+
+function emailIsPremium(?string $email): bool
+{
+  if (!$email) {
+    return false;
+  }
+  return in_array(strtolower(trim($email)), premiumEmailAllowlist(), true);
+}
 
 function userIsPremium($db, int $userId): bool
 {
-  $row = $db->fetchOne("SELECT is_premium FROM users WHERE id = ?", [$userId]);
-  return $row && (int)$row['is_premium'] === 1;
+  $row = $db->fetchOne("SELECT is_premium, email FROM users WHERE id = ?", [$userId]);
+  if (!$row) {
+    return false;
+  }
+  return (int)$row['is_premium'] === 1 || emailIsPremium($row['email'] ?? null);
+}
+
+/** Force is_premium=1 in a user row for API responses if the email is allowlisted. */
+function applyPremiumFlag(?array $user): ?array
+{
+  if ($user && emailIsPremium($user['email'] ?? null)) {
+    $user['is_premium'] = 1;
+  }
+  return $user;
 }
 
 /** Respond 402 and stop if the user is not premium. */
