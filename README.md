@@ -21,8 +21,8 @@ Weekly meal planner for weight loss — high-protein, high-calcium, very low car
 
 | Target | Doc |
 |--------|-----|
-| PHP API → cPanel | [server/CPANEL_DEPLOYMENT.md](server/CPANEL_DEPLOYMENT.md) |
-| Android app → Play Store | [mobile/DEPLOYMENT.md](mobile/DEPLOYMENT.md) |
+| PHP API → cPanel | [docs/server-deployment.md](docs/server-deployment.md) |
+| Android app → Play Store | [docs/mobile-deployment.md](docs/mobile-deployment.md) |
 
 ## Local development
 
