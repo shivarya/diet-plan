@@ -10,6 +10,7 @@ import {
   MealItem,
   MealPlan,
   Recipe,
+  RecipeDetailAI,
   User,
 } from '../types';
 
@@ -132,6 +133,15 @@ class ApiService {
     const res = await this.api.post<ApiResponse<IngredientDish>>('/ai/from-ingredients', {
       ingredients,
       day,
+    });
+    return res.data;
+  }
+
+  // Detailed step-by-step recipe in a chosen Indian language (free; cached server-side).
+  async getRecipeDetail(recipeId: number, language: string) {
+    const res = await this.api.post<ApiResponse<RecipeDetailAI>>('/ai/recipe-detail', {
+      recipe_id: recipeId,
+      language,
     });
     return res.data;
   }

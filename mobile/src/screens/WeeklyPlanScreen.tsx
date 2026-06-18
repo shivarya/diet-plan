@@ -244,12 +244,7 @@ function MealRow({
       <Text style={[styles.mealLabel, { color: kid ? colors.warning : colors.textSecondary }]}>{label}</Text>
       {item ? (
         <View style={styles.mealBody}>
-          <RecipeImage
-            recipe={item.recipe}
-            style={compact ? styles.thumbSmall : styles.thumb}
-            rounded={8}
-            fontSize={compact ? 14 : 18}
-          />
+          <RecipeImage recipe={item.recipe} style={styles.thumb} rounded={8} fontSize={18} />
           <TouchableOpacity style={styles.mealText} onPress={() => onPressRecipe(item.recipe.id, item.recipe.name)}>
             <Text style={[compact ? styles.mealNameCompact : styles.mealName, { color: colors.text }]}>
               {item.recipe.name}
@@ -303,12 +298,11 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontSize: 11, fontWeight: '700' },
   mealRow: { marginTop: 10 },
-  mealRowCompact: { marginTop: 4, paddingLeft: 14 },
-  mealLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  mealRowCompact: { marginTop: 4 },
+  mealLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   mealBody: { flexDirection: 'row', alignItems: 'center' },
-  mealText: { flex: 1, marginLeft: 10 },
-  thumb: { width: 46, height: 46 },
-  thumbSmall: { width: 34, height: 34 },
+  mealText: { flex: 1, marginLeft: 12 },
+  thumb: { width: 44, height: 44 },
   mealName: { fontSize: 15, fontWeight: '600' },
   mealNameCompact: { fontSize: 14, fontWeight: '500' },
   mealMacro: { fontSize: 12, marginTop: 1 },

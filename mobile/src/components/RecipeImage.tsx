@@ -5,25 +5,36 @@ import { Image } from 'expo-image';
 import { useTheme } from '../contexts/ThemeContext';
 import { Recipe } from '../types';
 
-type ImgRecipe = Pick<Recipe, 'id' | 'name' | 'image_url'>;
+type ImgRecipe = Pick<Recipe, 'id' | 'name' | 'image_url' | 'dish_category'>;
+
+// A reliable food anchor per category so every dish resolves to a real photo.
+const CATEGORY_ANCHOR: Record<string, string> = {
+  bread: 'roti',
+  rice: 'rice',
+  beverage: 'drink',
+  snack: 'snack',
+};
 
 /**
  * Resolve a dish photo URL. A curated `image_url` from the DB wins; otherwise we
- * fall back to a keyword-matched free food photo (stable per recipe id) so every
- * dish shows a real picture. If even that fails to load, the caller renders a
- * themed initial placeholder. expo-image caches results on disk.
+ * build a keyword-matched free food photo, stable per recipe id so every dish gets
+ * a distinct picture. We use loremflickr's `/all` (match ANY tag) — matching ALL
+ * tags finds nothing and returns the same grey defaultImage for every dish. The
+ * dish words bias relevance; the category/'food' anchors guarantee a real match.
+ * If it still fails to load, the caller renders a themed initial placeholder.
+ * expo-image caches results on disk.
  */
 function buildPhotoUrl(recipe: ImgRecipe): string {
   if (recipe.image_url) return recipe.image_url;
-  const tags =
-    recipe.name
-      .toLowerCase()
-      .replace(/[^a-z ]/g, '')
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .join(',') || 'indian';
-  return `https://loremflickr.com/400/300/${encodeURIComponent(tags)},indian,food?lock=${recipe.id || 1}`;
+  const words = recipe.name
+    .toLowerCase()
+    .replace(/[^a-z ]/g, '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+  const anchor = CATEGORY_ANCHOR[recipe.dish_category ?? ''] ?? 'curry';
+  const tags = Array.from(new Set([...words, anchor, 'food'])).join(',');
+  return `https://loremflickr.com/300/300/${encodeURIComponent(tags)}/all?lock=${recipe.id || 1}`;
 }
 
 export default function RecipeImage({

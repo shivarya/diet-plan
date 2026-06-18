@@ -134,3 +134,18 @@ CREATE TABLE IF NOT EXISTS meal_plan_items (
   CONSTRAINT fk_item_plan FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id) ON DELETE CASCADE,
   CONSTRAINT fk_item_recipe FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
+-- recipe_details — AI-generated detailed/translated recipes, cached per language
+-- (generated once per recipe+language, then served from here for everyone)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS recipe_details (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  recipe_id  BIGINT UNSIGNED NOT NULL,
+  language   VARCHAR(20)     NOT NULL, -- e.g. English, Hindi, Tamil
+  content    JSON            NOT NULL, -- { title, serves, total_time_min, ingredients[], steps[], tips[] }
+  created_at TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_recipe_lang (recipe_id, language),
+  CONSTRAINT fk_rdetail_recipe FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

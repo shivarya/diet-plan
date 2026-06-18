@@ -11,7 +11,101 @@ function handleAiRoutes($uri, $method)
     aiFromIngredients();
     return;
   }
+  if ($uri === '/ai/recipe-detail' && $method === 'POST') {
+    aiRecipeDetail();
+    return;
+  }
   Response::error('Route not found', 404);
+}
+
+/** Languages we offer detailed recipes in (display name => kept verbatim in DB). */
+const RECIPE_LANGUAGES = [
+  'English', 'Hindi', 'Bengali', 'Telugu', 'Marathi', 'Tamil',
+  'Gujarati', 'Kannada', 'Malayalam', 'Punjabi', 'Odia', 'Urdu',
+];
+
+/**
+ * Detailed, beginner-friendly recipe in the requested Indian language. Available
+ * to any signed-in user (not premium). Generated once per (recipe, language) via
+ * AI and cached in recipe_details so repeat views are instant and free.
+ */
+function aiRecipeDetail()
+{
+  $tokenData = JWTHandler::requireAuth();
+  $db = getDB();
+
+  $input = getJsonInput();
+  $recipeId = (int)($input['recipe_id'] ?? 0);
+  $language = (string)($input['language'] ?? 'English');
+  if (!in_array($language, RECIPE_LANGUAGES, true)) {
+    $language = 'English';
+  }
+  if ($recipeId <= 0) {
+    Response::error('recipe_id is required', 400);
+    return;
+  }
+
+  $recipe = $db->fetchOne("SELECT * FROM recipes WHERE id = ?", [$recipeId]);
+  if (!$recipe) {
+    Response::error('Recipe not found', 404);
+    return;
+  }
+
+  // Serve from cache if we've generated this (recipe, language) before.
+  $cached = $db->fetchOne(
+    "SELECT content FROM recipe_details WHERE recipe_id = ? AND language = ?",
+    [$recipeId, $language]
+  );
+  if ($cached) {
+    $decoded = json_decode($cached['content'], true);
+    if (is_array($decoded)) {
+      Response::success($decoded, 'Detailed recipe (cached)');
+      return;
+    }
+  }
+
+  $ai = new AIClient();
+  if (!$ai->isConfigured()) {
+    Response::error('AI is not configured on the server', 503);
+    return;
+  }
+
+  $ingredients = json_decode($recipe['ingredients'] ?? '[]', true);
+  $ingredients = is_array($ingredients) ? implode(', ', $ingredients) : '';
+
+  $system = "You are an experienced Indian home chef. Expand the given dish into a "
+    . "detailed, beginner-friendly recipe with precise quantities and clear numbered "
+    . "steps. Keep it healthy (high-protein, low-carb friendly) and authentic. "
+    . "Write ALL text — title, every ingredient item and quantity, every step and tip — "
+    . "in {$language} using that language's native script (English may stay in Latin script). "
+    . "Respond ONLY as JSON: {\"title\":string,\"serves\":number,\"total_time_min\":number,"
+    . "\"ingredients\":[{\"item\":string,\"quantity\":string}],\"steps\":[string],\"tips\":[string]}.";
+
+  $user = "Dish: {$recipe['name']} ({$recipe['cuisine']}, {$recipe['meal_type']}).\n"
+    . "Known ingredients: {$ingredients}.\n"
+    . "Short method for reference: " . ($recipe['instructions'] ?? '(none)') . "\n"
+    . "Serves about {$recipe['servings']}. Produce the full detailed recipe in {$language}.";
+
+  $detail = $ai->chatCompletion([
+    ['role' => 'system', 'content' => $system],
+    ['role' => 'user', 'content' => $user],
+  ], 0.5, true);
+
+  if (!$detail || empty($detail['steps'])) {
+    Response::error('Could not generate the recipe right now. Please try again.', 502);
+    return;
+  }
+
+  $detail['language'] = $language;
+
+  // Cache for everyone (idempotent on recipe_id+language).
+  $db->execute(
+    "INSERT INTO recipe_details (recipe_id, language, content) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE content = VALUES(content)",
+    [$recipeId, $language, json_encode($detail, JSON_UNESCAPED_UNICODE)]
+  );
+
+  Response::success($detail, 'Detailed recipe generated');
 }
 
 /**

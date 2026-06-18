@@ -37,7 +37,7 @@
     "extra": {
       "apiUrl": "https://shivarya.dev/diet_plan",
       "apiUrlDev": "https://shivarya.dev/diet_plan",
-      "googleClientId": "1080529324514-2u1di0ifr6i7el6og2ef9258s1hf3bg4.apps.googleusercontent.com",
+      "googleClientId": "1080529324514-7gp6cv054bsvhii5u7748k9unhm92t3d.apps.googleusercontent.com",
       "enableApiDebug": true,
       "eas": {
         "projectId": "22ff1e9a-f332-4acd-98bf-032e3150c4b6"

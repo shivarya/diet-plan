@@ -135,6 +135,24 @@ export interface IngredientDish {
   applied_constraints?: string;
 }
 
+// Detailed/translated recipe (AI-generated, cached server-side).
+export const RECIPE_LANGUAGES = [
+  'English', 'Hindi', 'Bengali', 'Telugu', 'Marathi', 'Tamil',
+  'Gujarati', 'Kannada', 'Malayalam', 'Punjabi', 'Odia', 'Urdu',
+] as const;
+
+export type RecipeLanguage = (typeof RECIPE_LANGUAGES)[number];
+
+export interface RecipeDetailAI {
+  language: string;
+  title: string;
+  serves: number;
+  total_time_min: number;
+  ingredients: { item: string; quantity: string }[];
+  steps: string[];
+  tips: string[];
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data: T;
