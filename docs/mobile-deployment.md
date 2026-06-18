@@ -43,7 +43,7 @@ You need **two** client IDs from Google Cloud Console: a **Web** client ID for t
 }
 ```
 
-4. Add the Android client ID to the server `.env` as `GOOGLE_ALLOWED_AUDIENCES` (comma-separated list) so the server accepts tokens issued to it.
+4. **`GOOGLE_ALLOWED_AUDIENCES` is not needed** — the app uses the Web client ID as `webClientId`, so Google issues tokens with `aud = Web client ID`, which the server already accepts via `GOOGLE_CLIENT_ID`. Leave `GOOGLE_ALLOWED_AUDIENCES` blank unless you add an iOS build later.
 
 ---
 

@@ -92,7 +92,7 @@ JWT_SECRET=<run: php -r "echo bin2hex(random_bytes(32));">
 ALLOW_DEV_LOGIN=false
 
 GOOGLE_CLIENT_ID=<Web client ID from step 5b>
-GOOGLE_ALLOWED_AUDIENCES=<Android client ID from mobile build — comma-separated, optional>
+# GOOGLE_ALLOWED_AUDIENCES=   # leave blank — only needed if you add iOS later
 
 AI_PROVIDER=groq
 AI_MODEL=llama-3.3-70b-versatile
