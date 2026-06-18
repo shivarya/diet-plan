@@ -104,6 +104,12 @@ class ApiService {
     return res.data;
   }
 
+  // Lazily resolve & store a dish photo on the server (once per recipe).
+  async populateRecipeImage(id: number) {
+    const res = await this.api.post<ApiResponse<{ image_url: string }>>(`/recipes/${id}/image`);
+    return res.data;
+  }
+
   async getRecipe(id: number) {
     const res = await this.api.get<ApiResponse<Recipe>>(`/recipes/${id}`);
     return res.data;

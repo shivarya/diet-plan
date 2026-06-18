@@ -48,10 +48,33 @@ export default function RecipeDetailScreen() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
-    ApiService.getRecipe(route.params.recipeId)
-      .then((res) => setRecipe(res.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    let active = true;
+    (async () => {
+      try {
+        const res = await ApiService.getRecipe(route.params.recipeId);
+        if (!active) return;
+        const r = res.data;
+        setRecipe(r);
+        // First time we view a recipe with no photo: ask the server to resolve &
+        // store one, then merge it in. Subsequent views already have image_url.
+        if (r && !r.image_url) {
+          ApiService.populateRecipeImage(r.id)
+            .then((img) => {
+              if (active && img.success && img.data?.image_url) {
+                setRecipe((prev) => (prev ? { ...prev, image_url: img.data.image_url } : prev));
+              }
+            })
+            .catch(() => {});
+        }
+      } catch {
+        // leave recipe unset
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [route.params.recipeId]);
 
   const loadDetail = async (lang: RecipeLanguage) => {
@@ -120,7 +143,7 @@ export default function RecipeDetailScreen() {
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
-      <RecipeImage recipe={recipe} style={styles.hero} rounded={16} fontSize={72} kind="hero" />
+      <RecipeImage recipe={recipe} style={styles.hero} rounded={16} fontSize={72} />
 
       <Text style={[styles.title, { color: colors.text }]}>{recipe.name}</Text>
       <Text style={[styles.sub, { color: colors.textSecondary }]}>

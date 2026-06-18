@@ -1,9 +1,16 @@
 <?php
 
 require_once __DIR__ . '/../utils/recipes.php';
+require_once __DIR__ . '/../utils/recipeImage.php';
 
 function handleRecipeRoutes($uri, $method)
 {
+  // /recipes/{id}/image — lazily resolve & store a photo, once per recipe
+  if (preg_match('#^/recipes/(\d+)/image$#', $uri, $m) && $method === 'POST') {
+    populateRecipeImage((int)$m[1]);
+    return;
+  }
+
   // /recipes/{id}
   if (preg_match('#^/recipes/(\d+)$#', $uri, $m) && $method === 'GET') {
     getRecipe((int)$m[1]);
@@ -16,6 +23,32 @@ function handleRecipeRoutes($uri, $method)
   }
 
   Response::error('Route not found', 404);
+}
+
+/**
+ * Resolve a dish photo from LoremFlickr and store it on the recipe — once, ever.
+ * If the recipe already has an image_url it is returned as-is (never refetched).
+ */
+function populateRecipeImage(int $id)
+{
+  JWTHandler::requireAuth();
+  $db = getDB();
+  $row = $db->fetchOne("SELECT * FROM recipes WHERE id = ?", [$id]);
+  if (!$row) {
+    Response::error('Recipe not found', 404);
+    return;
+  }
+  if (!empty($row['image_url'])) {
+    Response::success(['image_url' => $row['image_url']], 'Image already set');
+    return;
+  }
+  $url = resolveRecipeImageUrl($row);
+  if (!$url) {
+    Response::error('Could not fetch an image right now', 502);
+    return;
+  }
+  $db->execute("UPDATE recipes SET image_url = ? WHERE id = ?", [$url, $id]);
+  Response::success(['image_url' => $url], 'Image stored');
 }
 
 function listRecipes()
