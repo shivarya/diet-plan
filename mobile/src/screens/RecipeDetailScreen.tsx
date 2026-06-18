@@ -6,17 +6,20 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  TextInput,
   Share,
   Linking,
   Alert,
   Platform,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import type { RouteProp } from '@react-navigation/native';
 import { useRoute } from '@react-navigation/native';
 
 import ApiService from '../services/api';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Recipe, RecipeDetailAI, RecipeLanguage, RECIPE_LANGUAGES } from '../types';
 import { PlanStackParamList } from '../navigation/types';
 import RecipeImage from '../components/RecipeImage';
@@ -41,11 +44,17 @@ function Stat({ label, value }: { label: string; value: string }) {
 export default function RecipeDetailScreen() {
   const route = useRoute<DetailRoute>();
   const { colors } = useTheme();
+  const { isAdmin } = useAuth();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [language, setLanguage] = useState<RecipeLanguage>('English');
   const [detail, setDetail] = useState<RecipeDetailAI | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const [options, setOptions] = useState<string[]>([]);
+  const [optLoading, setOptLoading] = useState(false);
+  const [manualUrl, setManualUrl] = useState('');
+  const [savingImg, setSavingImg] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -88,6 +97,36 @@ export default function RecipeDetailScreen() {
       Alert.alert('Could not load recipe', e?.response?.data?.error || e?.message || 'Try again');
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const openPicker = async () => {
+    setPicker(true);
+    if (options.length > 0) return;
+    setOptLoading(true);
+    try {
+      const res = await ApiService.getRecipeImageOptions(route.params.recipeId);
+      if (res.success) setOptions(res.data.options ?? []);
+    } catch (e: any) {
+      Alert.alert('Could not load options', e?.response?.data?.error || e?.message || 'Try again');
+    } finally {
+      setOptLoading(false);
+    }
+  };
+
+  const chooseImage = async (url: string) => {
+    setSavingImg(true);
+    try {
+      const res = await ApiService.setRecipeImage(route.params.recipeId, url);
+      if (res.success) {
+        setRecipe((prev) => (prev ? { ...prev, image_url: res.data.image_url } : prev));
+        setPicker(false);
+        setManualUrl('');
+      }
+    } catch (e: any) {
+      Alert.alert('Could not save', e?.response?.data?.error || e?.message || 'Try again');
+    } finally {
+      setSavingImg(false);
     }
   };
 
@@ -144,6 +183,54 @@ export default function RecipeDetailScreen() {
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
       <RecipeImage recipe={recipe} style={styles.hero} rounded={16} fontSize={72} />
+
+      {isAdmin ? (
+        <TouchableOpacity onPress={() => (picker ? setPicker(false) : openPicker())}>
+          <Text style={[styles.adminLink, { color: colors.primary }]}>
+            {picker ? '✕ Close photo picker' : '✎ Change photo (admin)'}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {isAdmin && picker ? (
+        <View style={[styles.pickerBox, { borderColor: colors.border }]}>
+          {optLoading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optRow}>
+              {options.map((u) => (
+                <TouchableOpacity key={u} onPress={() => chooseImage(u)} disabled={savingImg}>
+                  <ExpoImage source={{ uri: u }} style={styles.optThumb} contentFit="cover" />
+                </TouchableOpacity>
+              ))}
+              {options.length === 0 ? (
+                <Text style={[styles.hint, { color: colors.textSecondary }]}>No options found — paste a URL below.</Text>
+              ) : null}
+            </ScrollView>
+          )}
+          <View style={styles.manualRow}>
+            <TextInput
+              style={[styles.urlInput, { color: colors.text, borderColor: colors.border }]}
+              placeholder="or paste an image URL"
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={manualUrl}
+              onChangeText={setManualUrl}
+            />
+            <TouchableOpacity
+              style={[styles.saveUrlBtn, { backgroundColor: colors.primary, opacity: manualUrl.trim() ? 1 : 0.5 }]}
+              disabled={!manualUrl.trim() || savingImg}
+              onPress={() => chooseImage(manualUrl.trim())}
+            >
+              <Text style={{ color: colors.onPrimary, fontWeight: '700' }}>Save</Text>
+            </TouchableOpacity>
+          </View>
+          {savingImg ? (
+            <Text style={[styles.hint, { color: colors.textSecondary, marginTop: 8 }]}>Saving for all users…</Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <Text style={[styles.title, { color: colors.text }]}>{recipe.name}</Text>
       <Text style={[styles.sub, { color: colors.textSecondary }]}>
@@ -271,6 +358,13 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 20, paddingBottom: 40 },
   hero: { width: '100%', height: 200, marginBottom: 16 },
+  adminLink: { fontSize: 13, fontWeight: '700', marginBottom: 10 },
+  pickerBox: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16 },
+  optRow: { gap: 8, paddingRight: 8 },
+  optThumb: { width: 90, height: 64, borderRadius: 8 },
+  manualRow: { flexDirection: 'row', gap: 8, marginTop: 12, alignItems: 'center' },
+  urlInput: { flex: 1, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13 },
+  saveUrlBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
   title: { fontSize: 26, fontWeight: '800' },
   sub: { fontSize: 13, marginTop: 4, textTransform: 'capitalize' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 16 },

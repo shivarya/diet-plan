@@ -73,3 +73,33 @@ function resolveRecipeImageUrl(array $recipe): ?string
   }
   return null;
 }
+
+/** A handful of distinct candidate images for an admin to choose the right one from. */
+function recipeImageCandidates(array $recipe, int $max = 6): array
+{
+  $seed = (int)($recipe['id'] ?? 1);
+  $kw = recipeImageKeyword($recipe);
+  // Mostly the dish's own keyword (varied locks), plus a couple of broader options.
+  $probes = [
+    "https://loremflickr.com/600/400/{$kw}?lock={$seed}",
+    "https://loremflickr.com/600/400/{$kw}?lock=" . ($seed + 50),
+    "https://loremflickr.com/600/400/{$kw}?lock=" . ($seed + 120),
+    "https://loremflickr.com/600/400/{$kw}?lock=" . ($seed + 200),
+    "https://loremflickr.com/600/400/{$kw},indian,food/all?lock=" . ($seed + 12),
+    "https://loremflickr.com/600/400/indian,food/all?lock=" . ($seed + 7),
+  ];
+  $out = [];
+  foreach ($probes as $url) {
+    if (count($out) >= $max) {
+      break;
+    }
+    [$code, $redirect] = loremflickrProbe($url);
+    $final = ($redirect && strpos($redirect, 'defaultImage') === false)
+      ? $redirect
+      : ((!$redirect && $code >= 200 && $code < 300) ? $url : null);
+    if ($final && !in_array($final, $out, true)) {
+      $out[] = $final;
+    }
+  }
+  return $out;
+}

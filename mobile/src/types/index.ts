@@ -36,6 +36,7 @@ export interface User {
   name: string;
   profile_picture?: string | null;
   is_premium?: number;
+  is_admin?: number;
 }
 
 export interface DietaryPreferences {

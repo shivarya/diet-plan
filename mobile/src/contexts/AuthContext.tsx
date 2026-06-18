@@ -12,6 +12,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isPremium: boolean;
+  isAdmin: boolean;
   signInWithGoogle: () => Promise<void>;
   devLogin: () => Promise<void>;
   logout: () => Promise<void>;
@@ -112,6 +113,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         user,
         loading,
         isPremium: !!user?.is_premium,
+        isAdmin: user?.is_admin === 1,
         signInWithGoogle,
         devLogin,
         logout,

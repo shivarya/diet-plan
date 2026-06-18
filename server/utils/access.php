@@ -28,6 +28,42 @@ function emailIsPremium(?string $email): bool
   return in_array(strtolower(trim($email)), premiumEmailAllowlist(), true);
 }
 
+/** Lower-cased set of admin emails from the ADMIN_EMAILS env var (curators). */
+function adminEmailAllowlist(): array
+{
+  $raw = getenv('ADMIN_EMAILS') ?: ($_ENV['ADMIN_EMAILS'] ?? '');
+  $out = [];
+  foreach (explode(',', strtolower((string)$raw)) as $e) {
+    $e = trim($e);
+    if ($e !== '') {
+      $out[] = $e;
+    }
+  }
+  return $out;
+}
+
+function emailIsAdmin(?string $email): bool
+{
+  if (!$email) {
+    return false;
+  }
+  return in_array(strtolower(trim($email)), adminEmailAllowlist(), true);
+}
+
+function userIsAdmin($db, int $userId): bool
+{
+  $row = $db->fetchOne("SELECT email FROM users WHERE id = ?", [$userId]);
+  return $row && emailIsAdmin($row['email'] ?? null);
+}
+
+/** Respond 403 and stop if the user is not an admin/curator. */
+function requireAdmin($db, int $userId): void
+{
+  if (!userIsAdmin($db, $userId)) {
+    Response::error('Admins only.', 403);
+  }
+}
+
 function userIsPremium($db, int $userId): bool
 {
   $row = $db->fetchOne("SELECT is_premium, email FROM users WHERE id = ?", [$userId]);
@@ -37,10 +73,19 @@ function userIsPremium($db, int $userId): bool
   return (int)$row['is_premium'] === 1 || emailIsPremium($row['email'] ?? null);
 }
 
-/** Force is_premium=1 in a user row for API responses if the email is allowlisted. */
+/**
+ * Decorate a user row for API responses with env-derived roles: is_admin from the
+ * admin allowlist, and is_premium from the premium allowlist (admins are premium too).
+ */
 function applyPremiumFlag(?array $user): ?array
 {
-  if ($user && emailIsPremium($user['email'] ?? null)) {
+  if (!$user) {
+    return null;
+  }
+  $email = $user['email'] ?? null;
+  $admin = emailIsAdmin($email);
+  $user['is_admin'] = $admin ? 1 : 0;
+  if ($admin || emailIsPremium($email)) {
     $user['is_premium'] = 1;
   }
   return $user;

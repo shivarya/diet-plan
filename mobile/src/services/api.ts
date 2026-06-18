@@ -110,6 +110,19 @@ class ApiService {
     return res.data;
   }
 
+  // Admin: candidate photos for a recipe, and set the curated one for all users.
+  async getRecipeImageOptions(id: number) {
+    const res = await this.api.get<ApiResponse<{ options: string[] }>>(`/recipes/${id}/image-options`);
+    return res.data;
+  }
+
+  async setRecipeImage(id: number, imageUrl: string) {
+    const res = await this.api.put<ApiResponse<{ image_url: string }>>(`/recipes/${id}/image`, {
+      image_url: imageUrl,
+    });
+    return res.data;
+  }
+
   async getRecipe(id: number) {
     const res = await this.api.get<ApiResponse<Recipe>>(`/recipes/${id}`);
     return res.data;

@@ -2,13 +2,26 @@
 
 require_once __DIR__ . '/../utils/recipes.php';
 require_once __DIR__ . '/../utils/recipeImage.php';
+require_once __DIR__ . '/../utils/access.php';
 
 function handleRecipeRoutes($uri, $method)
 {
-  // /recipes/{id}/image — lazily resolve & store a photo, once per recipe
-  if (preg_match('#^/recipes/(\d+)/image$#', $uri, $m) && $method === 'POST') {
-    populateRecipeImage((int)$m[1]);
+  // /recipes/{id}/image-options — admin: candidate photos to choose from
+  if (preg_match('#^/recipes/(\d+)/image-options$#', $uri, $m) && $method === 'GET') {
+    getRecipeImageOptions((int)$m[1]);
     return;
+  }
+
+  // /recipes/{id}/image — POST lazily resolves once; PUT lets an admin set it
+  if (preg_match('#^/recipes/(\d+)/image$#', $uri, $m)) {
+    if ($method === 'POST') {
+      populateRecipeImage((int)$m[1]);
+      return;
+    }
+    if ($method === 'PUT') {
+      setRecipeImage((int)$m[1]);
+      return;
+    }
   }
 
   // /recipes/{id}
@@ -23,6 +36,44 @@ function handleRecipeRoutes($uri, $method)
   }
 
   Response::error('Route not found', 404);
+}
+
+/** Admin: a few candidate photos for a recipe so a curator can pick the right one. */
+function getRecipeImageOptions(int $id)
+{
+  $tokenData = JWTHandler::requireAuth();
+  $db = getDB();
+  requireAdmin($db, (int)$tokenData['userId']);
+
+  $row = $db->fetchOne("SELECT * FROM recipes WHERE id = ?", [$id]);
+  if (!$row) {
+    Response::error('Recipe not found', 404);
+    return;
+  }
+  Response::success(['options' => recipeImageCandidates($row)], 'Image options');
+}
+
+/** Admin: set the curated image URL for a recipe (stored for all users). */
+function setRecipeImage(int $id)
+{
+  $tokenData = JWTHandler::requireAuth();
+  $db = getDB();
+  requireAdmin($db, (int)$tokenData['userId']);
+
+  $input = getJsonInput();
+  $url = trim((string)($input['image_url'] ?? ''));
+  if (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $url) || strlen($url) > 512) {
+    Response::error('A valid http(s) image URL is required', 400);
+    return;
+  }
+
+  $row = $db->fetchOne("SELECT id FROM recipes WHERE id = ?", [$id]);
+  if (!$row) {
+    Response::error('Recipe not found', 404);
+    return;
+  }
+  $db->execute("UPDATE recipes SET image_url = ? WHERE id = ?", [$url, $id]);
+  Response::success(['image_url' => $url], 'Image updated');
 }
 
 /**
