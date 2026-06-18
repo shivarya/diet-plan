@@ -16,11 +16,15 @@ require_once __DIR__ . '/../utils/recipes.php';
 class PlanEngine
 {
   private $db;
-  private array $byMealType = ['breakfast' => [], 'lunch' => [], 'dinner' => [], 'snack' => []];
+  private array $byMealType = ['breakfast' => [], 'brunch' => [], 'lunch' => [], 'dinner' => [], 'snack' => []];
+  /** Bread/rice accompaniments — meal-type-agnostic, chosen as meal sides. */
+  private array $accompanimentPool = [];
   private array $kidPool = [];
   private array $recipeById = [];
-  /** Adult meal slots filled for every day. */
-  private array $slots = ['breakfast', 'lunch', 'dinner'];
+  /** Slot render/selection order; which slots are active depends on preferences. */
+  private const SLOT_ORDER = ['breakfast', 'brunch', 'lunch', 'dinner', 'snack'];
+  /** Slots that get a bread/rice side when accompaniments are enabled. */
+  private const ACCOMPANIED_SLOTS = ['lunch', 'dinner'];
 
   public function __construct($db)
   {
@@ -40,6 +44,12 @@ class PlanEngine
       }
       $r['id'] = (int)$r['id'];
       $this->recipeById[$r['id']] = $r;
+
+      // Breads/rice are accompaniments — never picked as a main or kid add-on.
+      if (in_array($r['dish_category'] ?? 'main', ['bread', 'rice'], true)) {
+        $this->accompanimentPool[] = $r;
+        continue;
+      }
       if (isset($this->byMealType[$r['meal_type']])) {
         $this->byMealType[$r['meal_type']][] = $r;
       }
@@ -49,11 +59,44 @@ class PlanEngine
     }
   }
 
-  /** Apply a day's egg/onion/garlic rules as a hard filter. */
+  /** The active meal slots for a user, in render order, based on their toggles. */
+  public function enabledSlots(array $prefs): array
+  {
+    $on = [
+      'brunch' => (int)($prefs['include_brunch'] ?? 0) === 1,
+      'snack'  => (int)($prefs['include_evening_snack'] ?? 0) === 1,
+    ];
+    return array_values(array_filter(self::SLOT_ORDER, function ($slot) use ($on) {
+      if ($slot === 'brunch') return $on['brunch'];
+      if ($slot === 'snack')  return $on['snack'];
+      return true; // breakfast / lunch / dinner are always on
+    }));
+  }
+
+  /** The day's diet level: veg | egg | nonveg (back-compat: derive from egg flag). */
+  private static function dietLevel(array $rules): string
+  {
+    if (isset($rules['diet']) && in_array($rules['diet'], ['veg', 'egg', 'nonveg'], true)) {
+      return $rules['diet'];
+    }
+    return empty($rules['egg']) ? 'veg' : 'egg';
+  }
+
+  /** Does a recipe's food_type fit the day's diet level? veg⊂egg⊂nonveg. */
+  private static function foodTypeAllowed(string $foodType, string $diet): bool
+  {
+    if ($diet === 'nonveg') return true;             // anything goes
+    if ($foodType === 'nonveg') return false;        // meat/fish needs a nonveg day
+    if ($diet === 'veg' && $foodType === 'egg') return false; // egg needs at least an egg day
+    return true;
+  }
+
+  /** Apply a day's diet/onion/garlic rules as a hard filter. */
   private function filterByRules(array $pool, array $rules): array
   {
-    return array_values(array_filter($pool, function ($r) use ($rules) {
-      if (empty($rules['egg']) && $r['contains_egg'] === 1) return false;
+    $diet = self::dietLevel($rules);
+    return array_values(array_filter($pool, function ($r) use ($rules, $diet) {
+      if (!self::foodTypeAllowed($r['food_type'] ?? 'veg', $diet)) return false;
       if (empty($rules['onion']) && $r['contains_onion'] === 1) return false;
       if (empty($rules['garlic']) && $r['contains_garlic'] === 1) return false;
       return true;
@@ -103,6 +146,32 @@ class PlanEngine
   }
 
   /**
+   * Pick a bread/rice side for a meal, honouring the day's rules and week variety.
+   * Prefers rice when there is carb room left, otherwise a (lower-carb) roti/bread.
+   * Appends the chosen id to $usedIds so the week stays varied.
+   */
+  private function selectAccompaniment(array $rules, array &$usedIds, int $carbRemaining): ?array
+  {
+    $pool = $this->filterByRules($this->accompanimentPool, $rules);
+    if (empty($pool)) {
+      return null;
+    }
+    $wantRice = $carbRemaining >= 45; // enough budget for a rice portion
+    $primary = array_values(array_filter(
+      $pool,
+      fn($r) => $r['dish_category'] === ($wantRice ? 'rice' : 'bread')
+    ));
+    $pick = $this->selectBest(!empty($primary) ? $primary : $pool, $usedIds, $carbRemaining);
+    if (!$pick) {
+      $pick = $this->selectBest($pool, $usedIds, $carbRemaining);
+    }
+    if ($pick) {
+      $usedIds[] = $pick['id'];
+    }
+    return $pick;
+  }
+
+  /**
    * Generate and persist a weekly plan. Replaces any existing plan for the same
    * (user, weekStart). Returns the assembled plan.
    */
@@ -119,23 +188,26 @@ class PlanEngine
     return $this->buildPlanData(loadOrCreatePreferences($this->db, $userId));
   }
 
-  /** Core selection loop: returns [dow => ['meals' => [slot => recipeRow], 'kid' => recipeRow|null]]. */
+  /** Core selection loop: returns [dow => ['meals' => [...], 'sides' => [...], 'kid' => recipeRow|null]]. */
   private function buildPlanData(array $prefs): array
   {
     $dayRules = $prefs['day_rules'];
     $carbCeiling = (int)$prefs['carb_ceiling_g'];
     $hasKid = (int)$prefs['has_kid'] === 1;
+    $withSides = (int)($prefs['include_accompaniment'] ?? 1) === 1;
+    $slots = $this->enabledSlots($prefs);
 
     $usedIds = [];        // week-level variety for adult meals
+    $usedSideIds = [];    // week-level variety for accompaniments
     $usedKidIds = [];     // week-level variety for kid add-ons
-    $plan = [];           // [dow => ['meals' => [...], 'kid' => recipe|null]]
+    $plan = [];           // [dow => ['meals' => [...], 'sides' => [...], 'kid' => recipe|null]]
 
     for ($dow = 0; $dow < 7; $dow++) {
       $rules = $dayRules[weekdayKey($dow)];
       $carbRemaining = $carbCeiling;
-      $plan[$dow] = ['meals' => [], 'kid' => null];
+      $plan[$dow] = ['meals' => [], 'sides' => [], 'kid' => null];
 
-      foreach ($this->slots as $slot) {
+      foreach ($slots as $slot) {
         $pool = $this->filterByRules($this->byMealType[$slot], $rules);
         if (empty($pool)) {
           continue; // no eligible recipe for this slot/day
@@ -145,6 +217,15 @@ class PlanEngine
           $plan[$dow]['meals'][$slot] = $pick;
           $usedIds[] = $pick['id'];
           $carbRemaining -= $pick['carbs_g'];
+
+          // Indian lunch/dinner: pair the main with a roti/rice side.
+          if ($withSides && in_array($slot, self::ACCOMPANIED_SLOTS, true)) {
+            $side = $this->selectAccompaniment($rules, $usedSideIds, $carbRemaining);
+            if ($side) {
+              $plan[$dow]['sides'][$slot] = $side;
+              $carbRemaining -= $side['carbs_g'];
+            }
+          }
         }
       }
 
@@ -183,15 +264,18 @@ class PlanEngine
         [$userId, $weekStart, $generatedBy]
       );
 
-      $itemSql = "INSERT INTO meal_plan_items (meal_plan_id, day_of_week, meal_type, recipe_id, is_kid_addon, servings)
-                  VALUES (?, ?, ?, ?, ?, ?)";
+      $itemSql = "INSERT INTO meal_plan_items (meal_plan_id, day_of_week, meal_type, recipe_id, is_kid_addon, slot_role, servings)
+                  VALUES (?, ?, ?, ?, ?, ?, ?)";
       foreach ($plan as $dow => $day) {
         foreach ($day['meals'] as $slot => $recipe) {
-          $this->db->insert($itemSql, [$planId, $dow, $slot, $recipe['id'], 0, 1]);
+          $this->db->insert($itemSql, [$planId, $dow, $slot, $recipe['id'], 0, 'main', 1]);
+          if (!empty($day['sides'][$slot])) {
+            $this->db->insert($itemSql, [$planId, $dow, $slot, $day['sides'][$slot]['id'], 0, 'side', 1]);
+          }
         }
         if (!empty($day['kid'])) {
           $kid = $day['kid'];
-          $this->db->insert($itemSql, [$planId, $dow, $kid['meal_type'], $kid['id'], 1, 1]);
+          $this->db->insert($itemSql, [$planId, $dow, $kid['meal_type'], $kid['id'], 1, 'main', 1]);
         }
       }
 
@@ -223,9 +307,17 @@ class PlanEngine
     $prefs = loadOrCreatePreferences($this->db, $userId);
     $rules = $prefs['day_rules'][weekdayKey((int)$item['day_of_week'])];
     $isKid = (int)$item['is_kid_addon'] === 1;
+    $isSide = ($item['slot_role'] ?? 'main') === 'side';
 
-    // Pool: kid-friendly across meal types for add-ons, else same meal type.
-    $basePool = $isKid ? $this->kidPool : $this->byMealType[$item['meal_type']];
+    // Pool: kid-friendly across meal types for add-ons; bread/rice for a side;
+    // else mains of the same meal type.
+    if ($isKid) {
+      $basePool = $this->kidPool;
+    } elseif ($isSide) {
+      $basePool = $this->accompanimentPool;
+    } else {
+      $basePool = $this->byMealType[$item['meal_type']];
+    }
     $pool = $this->filterByRules($basePool, $rules);
 
     // Exclude every recipe already used in this plan (so the shuffle is genuinely new),
@@ -257,6 +349,7 @@ class PlanEngine
       'day_of_week' => (int)$item['day_of_week'],
       'meal_type' => $newMealType,
       'is_kid_addon' => $isKid,
+      'slot_role' => $item['slot_role'] ?? 'main',
       'servings' => (int)$item['servings'],
       'recipe' => hydrateRecipe($this->recipeById[$pick['id']]),
     ];
@@ -275,7 +368,10 @@ class PlanEngine
 
     $prefs = loadOrCreatePreferences($this->db, $userId);
     $items = $this->db->fetchAll(
-      "SELECT * FROM meal_plan_items WHERE meal_plan_id = ? ORDER BY day_of_week, is_kid_addon, FIELD(meal_type,'breakfast','lunch','dinner','snack')",
+      "SELECT * FROM meal_plan_items WHERE meal_plan_id = ?
+        ORDER BY day_of_week, is_kid_addon,
+                 FIELD(meal_type,'breakfast','brunch','lunch','dinner','snack'),
+                 FIELD(slot_role,'main','side')",
       [$planId]
     );
 
@@ -297,18 +393,24 @@ class PlanEngine
       if (!$recipe) {
         continue;
       }
+      $slotRole = $it['slot_role'] ?? 'main';
       $entry = [
         'item_id' => (int)$it['id'],
         'meal_type' => $it['meal_type'],
         'is_kid_addon' => (int)$it['is_kid_addon'] === 1,
+        'slot_role' => $slotRole,
         'servings' => (int)$it['servings'],
         'recipe' => $recipe,
       ];
       if ($entry['is_kid_addon']) {
         $days[$dow]['kid_addons'][] = $entry;
       } else {
-        $days[$dow]['meals'][$it['meal_type']] = $entry;
-        // Adult-meal totals only (the user's intake).
+        $slot = $it['meal_type'];
+        if (!isset($days[$dow]['meals'][$slot])) {
+          $days[$dow]['meals'][$slot] = ['main' => null, 'side' => null];
+        }
+        $days[$dow]['meals'][$slot][$slotRole === 'side' ? 'side' : 'main'] = $entry;
+        // Adult-meal totals (main + roti/rice side) — the user's intake.
         $days[$dow]['totals']['calories']   += $recipe['calories'];
         $days[$dow]['totals']['protein_g']   += $recipe['protein_g'];
         $days[$dow]['totals']['carbs_g']     += $recipe['carbs_g'];
@@ -326,15 +428,19 @@ class PlanEngine
     ];
   }
 
-  /** Compact recipe list for the AI planner (id + tags + macros). */
+  /** Compact recipe list for the AI planner (id + tags + macros). Mains only — sides are auto-added. */
   public function compactRecipeCatalog(): array
   {
     $out = [];
     foreach ($this->recipeById as $r) {
+      if (in_array($r['dish_category'] ?? 'main', ['bread', 'rice'], true)) {
+        continue; // accompaniments are chosen by the engine, not the AI
+      }
       $out[] = [
         'id' => $r['id'],
         'name' => $r['name'],
         'meal_type' => $r['meal_type'],
+        'food_type' => $r['food_type'] ?? 'veg',
         'protein_g' => $r['protein_g'],
         'carbs_g' => $r['carbs_g'],
         'calcium_mg' => $r['calcium_mg'],
@@ -360,7 +466,7 @@ class PlanEngine
   {
     $r = $this->recipeById[$recipeId] ?? null;
     if (!$r) return false;
-    if (empty($rules['egg']) && $r['contains_egg'] === 1) return false;
+    if (!self::foodTypeAllowed($r['food_type'] ?? 'veg', self::dietLevel($rules))) return false;
     if (empty($rules['onion']) && $r['contains_onion'] === 1) return false;
     if (empty($rules['garlic']) && $r['contains_garlic'] === 1) return false;
     return true;
@@ -369,15 +475,35 @@ class PlanEngine
   /** Persist an AI-proposed plan structure: [dow => ['meals'=>[slot=>recipeId], 'kid'=>[recipeId,...]]]. */
   public function persistResolvedPlan(int $userId, string $weekStart, array $resolved): array
   {
+    $prefs = loadOrCreatePreferences($this->db, $userId);
+    $carbCeiling = (int)$prefs['carb_ceiling_g'];
+    $withSides = (int)($prefs['include_accompaniment'] ?? 1) === 1;
+
+    $usedSideIds = [];
     $plan = [];
     for ($dow = 0; $dow < 7; $dow++) {
-      $plan[$dow] = ['meals' => [], 'kid' => null];
+      $rules = $prefs['day_rules'][weekdayKey($dow)];
+      $plan[$dow] = ['meals' => [], 'sides' => [], 'kid' => null];
+      $carbRemaining = $carbCeiling;
+
       foreach (($resolved[$dow]['meals'] ?? []) as $slot => $recipeId) {
         $row = $this->recipeById[(int)$recipeId] ?? null;
-        if ($row) {
-          $plan[$dow]['meals'][$slot] = $row;
+        if (!$row) {
+          continue;
+        }
+        $plan[$dow]['meals'][$slot] = $row;
+        $carbRemaining -= (int)$row['carbs_g'];
+
+        // Pair lunch/dinner mains with a roti/rice side, just like the rule path.
+        if ($withSides && in_array($slot, self::ACCOMPANIED_SLOTS, true)) {
+          $side = $this->selectAccompaniment($rules, $usedSideIds, $carbRemaining);
+          if ($side) {
+            $plan[$dow]['sides'][$slot] = $side;
+            $carbRemaining -= (int)$side['carbs_g'];
+          }
         }
       }
+
       $kidIds = $resolved[$dow]['kid'] ?? [];
       if (!empty($kidIds)) {
         $row = $this->recipeById[(int)$kidIds[0]] ?? null;

@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  TouchableOpacity,
+  Share,
+  Linking,
+} from 'react-native';
 import type { RouteProp } from '@react-navigation/native';
 import { useRoute } from '@react-navigation/native';
 
@@ -7,8 +16,17 @@ import ApiService from '../services/api';
 import { useTheme } from '../contexts/ThemeContext';
 import { Recipe } from '../types';
 import { PlanStackParamList } from '../navigation/types';
+import RecipeImage from '../components/RecipeImage';
 
 type DetailRoute = RouteProp<PlanStackParamList, 'RecipeDetail'>;
+
+/** Curated video if present, else a YouTube search for the dish. */
+function videoUrl(recipe: Recipe): string {
+  return (
+    recipe.video_url ||
+    `https://www.youtube.com/results?search_query=${encodeURIComponent(recipe.name + ' recipe')}`
+  );
+}
 
 function Stat({ label, value }: { label: string; value: string }) {
   const { colors } = useTheme();
@@ -48,20 +66,51 @@ export default function RecipeDetailScreen() {
     );
   }
 
+  const dietTag = recipe.food_type === 'veg' ? 'Veg' : recipe.food_type === 'egg' ? 'Egg' : 'Non-veg';
   const tags = [
+    dietTag,
     recipe.is_high_protein && 'High protein',
     recipe.is_low_carb && 'Low carb',
     recipe.is_weight_loss && 'Weight loss',
     recipe.is_kid_friendly && 'Kid friendly',
-    recipe.contains_egg && 'Contains egg',
   ].filter(Boolean) as string[];
+
+  const shareRecipe = async () => {
+    const lines = [
+      `🍽️ ${recipe.name}`,
+      `${recipe.calories} kcal · ${recipe.protein_g}g protein · ${recipe.carbs_g}g carbs · ${recipe.calcium_mg}mg calcium`,
+      '',
+      'Ingredients:',
+      ...recipe.ingredients.map((i) => `• ${i}`),
+    ];
+    if (recipe.instructions) lines.push('', 'Method:', recipe.instructions);
+    lines.push('', `▶ Watch: ${videoUrl(recipe)}`, '', 'Shared from Diet Plan');
+    try {
+      await Share.share({ message: lines.join('\n'), title: recipe.name });
+    } catch {
+      // user dismissed the share sheet
+    }
+  };
+
+  const openVideo = () => Linking.openURL(videoUrl(recipe)).catch(() => {});
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
+      <RecipeImage recipe={recipe} style={styles.hero} rounded={16} fontSize={48} />
+
       <Text style={[styles.title, { color: colors.text }]}>{recipe.name}</Text>
       <Text style={[styles.sub, { color: colors.textSecondary }]}>
         {recipe.cuisine} · {recipe.meal_type} · {recipe.prep_time_min} min · {recipe.difficulty}
       </Text>
+
+      <View style={styles.actions}>
+        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={shareRecipe}>
+          <Text style={[styles.actionText, { color: colors.onPrimary }]}>↗ Share</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.actionBtn, { borderColor: colors.primary, borderWidth: 1.5 }]} onPress={openVideo}>
+          <Text style={[styles.actionText, { color: colors.primary }]}>▶ Watch on YouTube</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={[styles.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Stat label="kcal" value={`${recipe.calories}`} />
@@ -98,8 +147,12 @@ export default function RecipeDetailScreen() {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 20, paddingBottom: 40 },
+  hero: { width: '100%', height: 200, marginBottom: 16 },
   title: { fontSize: 26, fontWeight: '800' },
   sub: { fontSize: 13, marginTop: 4, textTransform: 'capitalize' },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  actionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  actionText: { fontSize: 14, fontWeight: '700' },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',

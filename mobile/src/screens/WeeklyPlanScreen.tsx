@@ -17,15 +17,16 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { DayPlan, MealItem, MealPlan, MealType } from '../types';
 import { PlanStackParamList } from '../navigation/types';
+import RecipeImage from '../components/RecipeImage';
 
 type Nav = NativeStackNavigationProp<PlanStackParamList, 'WeeklyPlan'>;
 
-const MEAL_ORDER: MealType[] = ['breakfast', 'lunch', 'dinner'];
+const MEAL_ORDER: MealType[] = ['breakfast', 'brunch', 'lunch', 'dinner', 'snack'];
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function dayBadges(day: DayPlan): string[] {
   const b: string[] = [];
-  if (day.rules.egg === 0) b.push('No egg');
+  b.push(day.rules.diet === 'veg' ? 'Veg' : day.rules.diet === 'egg' ? 'Egg' : 'Non-veg');
   if (day.rules.onion === 0 && day.rules.garlic === 0) b.push('No onion/garlic');
   else {
     if (day.rules.onion === 0) b.push('No onion');
@@ -89,7 +90,8 @@ export default function WeeklyPlanScreen() {
     }
   };
 
-  // Patch the swapped item in place by its globally-unique item_id.
+  // Patch the swapped item in place by its globally-unique item_id. The item may
+  // be a slot's main, its bread/rice side, or a kid add-on.
   const replaceItem = (updated: MealItem) => {
     setPlan((prev) => {
       if (!prev) return prev;
@@ -98,11 +100,15 @@ export default function WeeklyPlanScreen() {
         let totals = { ...d.totals };
         let touched = false;
         (Object.keys(meals) as MealType[]).forEach((mt) => {
-          const it = meals[mt];
-          if (it && it.item_id === updated.item_id) {
-            totals = recomputeSwap(totals, it, updated);
-            delete meals[mt];
-            meals[updated.meal_type] = updated;
+          const slot = meals[mt];
+          if (!slot) return;
+          if (slot.main && slot.main.item_id === updated.item_id) {
+            totals = recomputeSwap(totals, slot.main, updated);
+            meals[mt] = { ...slot, main: updated };
+            touched = true;
+          } else if (slot.side && slot.side.item_id === updated.item_id) {
+            totals = recomputeSwap(totals, slot.side, updated);
+            meals[mt] = { ...slot, side: updated };
             touched = true;
           }
         });
@@ -166,17 +172,28 @@ export default function WeeklyPlanScreen() {
             </View>
           </View>
 
-          {MEAL_ORDER.map((mt) => {
-            const item = day.meals[mt];
+          {MEAL_ORDER.filter((mt) => day.meals[mt]).map((mt) => {
+            const slot = day.meals[mt]!;
             return (
-              <MealRow
-                key={mt}
-                label={cap(mt)}
-                item={item}
-                shufflingId={shufflingId}
-                onPressRecipe={(id, title) => navigation.navigate('RecipeDetail', { recipeId: id, title })}
-                onShuffle={shuffle}
-              />
+              <View key={mt}>
+                <MealRow
+                  label={cap(mt)}
+                  item={slot.main ?? undefined}
+                  shufflingId={shufflingId}
+                  onPressRecipe={(id, title) => navigation.navigate('RecipeDetail', { recipeId: id, title })}
+                  onShuffle={shuffle}
+                />
+                {slot.side ? (
+                  <MealRow
+                    label="with"
+                    compact
+                    item={slot.side}
+                    shufflingId={shufflingId}
+                    onPressRecipe={(id, title) => navigation.navigate('RecipeDetail', { recipeId: id, title })}
+                    onShuffle={shuffle}
+                  />
+                ) : null}
+              </View>
             );
           })}
 
@@ -208,6 +225,7 @@ function MealRow({
   label,
   item,
   kid,
+  compact,
   shufflingId,
   onPressRecipe,
   onShuffle,
@@ -215,18 +233,27 @@ function MealRow({
   label: string;
   item?: MealItem;
   kid?: boolean;
+  compact?: boolean;
   shufflingId: number | null;
   onPressRecipe: (id: number, title: string) => void;
   onShuffle: (item: MealItem) => void;
 }) {
   const { colors } = useTheme();
   return (
-    <View style={styles.mealRow}>
+    <View style={[styles.mealRow, compact && styles.mealRowCompact]}>
       <Text style={[styles.mealLabel, { color: kid ? colors.warning : colors.textSecondary }]}>{label}</Text>
       {item ? (
         <View style={styles.mealBody}>
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => onPressRecipe(item.recipe.id, item.recipe.name)}>
-            <Text style={[styles.mealName, { color: colors.text }]}>{item.recipe.name}</Text>
+          <RecipeImage
+            recipe={item.recipe}
+            style={compact ? styles.thumbSmall : styles.thumb}
+            rounded={8}
+            fontSize={compact ? 14 : 18}
+          />
+          <TouchableOpacity style={styles.mealText} onPress={() => onPressRecipe(item.recipe.id, item.recipe.name)}>
+            <Text style={[compact ? styles.mealNameCompact : styles.mealName, { color: colors.text }]}>
+              {item.recipe.name}
+            </Text>
             <Text style={[styles.mealMacro, { color: colors.textSecondary }]}>
               {item.recipe.protein_g}g protein · {item.recipe.carbs_g}g carb · {item.recipe.calories} kcal
             </Text>
@@ -276,9 +303,14 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontSize: 11, fontWeight: '700' },
   mealRow: { marginTop: 10 },
+  mealRowCompact: { marginTop: 4, paddingLeft: 14 },
   mealLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   mealBody: { flexDirection: 'row', alignItems: 'center' },
+  mealText: { flex: 1, marginLeft: 10 },
+  thumb: { width: 46, height: 46 },
+  thumbSmall: { width: 34, height: 34 },
   mealName: { fontSize: 15, fontWeight: '600' },
+  mealNameCompact: { fontSize: 14, fontWeight: '500' },
   mealMacro: { fontSize: 12, marginTop: 1 },
   shuffleBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   totals: { borderTopWidth: 1, marginTop: 12, paddingTop: 8 },

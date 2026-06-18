@@ -29,7 +29,11 @@ CREATE TABLE IF NOT EXISTS recipes (
   slug            VARCHAR(120)    NOT NULL,
   name            VARCHAR(200)    NOT NULL,
   cuisine         VARCHAR(60)     NOT NULL DEFAULT 'Indian',
-  meal_type       ENUM('breakfast','lunch','dinner','snack') NOT NULL,
+  meal_type       ENUM('breakfast','brunch','lunch','dinner','snack') NOT NULL,
+  -- veg | egg (vegetarian + egg) | nonveg (meat/fish). Source of truth for the diet filter.
+  food_type       ENUM('veg','egg','nonveg') NOT NULL DEFAULT 'veg',
+  -- main dish vs accompaniment (bread/rice) vs snack/beverage; bread+rice form the side pool.
+  dish_category   ENUM('main','bread','rice','snack','beverage') NOT NULL DEFAULT 'main',
   servings        TINYINT UNSIGNED NOT NULL DEFAULT 2,
 
   -- Nutrition (per serving)
@@ -55,6 +59,7 @@ CREATE TABLE IF NOT EXISTS recipes (
   prep_time_min   SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   difficulty      ENUM('easy','medium','hard') NOT NULL DEFAULT 'easy',
   image_url       VARCHAR(512) NULL,
+  video_url       VARCHAR(512) NULL, -- curated YouTube link; app falls back to a search by name
 
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -62,6 +67,8 @@ CREATE TABLE IF NOT EXISTS recipes (
   PRIMARY KEY (id),
   UNIQUE KEY uq_recipes_slug (slug),
   KEY idx_recipes_meal_type (meal_type),
+  KEY idx_recipes_food_type (food_type),
+  KEY idx_recipes_dish_category (dish_category),
   KEY idx_recipes_egg (contains_egg),
   KEY idx_recipes_onion (contains_onion),
   KEY idx_recipes_garlic (contains_garlic),
@@ -81,7 +88,11 @@ CREATE TABLE IF NOT EXISTS dietary_preferences (
   calcium_target_mg    SMALLINT UNSIGNED NOT NULL DEFAULT 1000,
   has_kid              TINYINT(1) NOT NULL DEFAULT 0,
   kid_age              TINYINT UNSIGNED NULL,
-  -- Per-weekday rules: { "monday": {"egg":1,"onion":1,"garlic":1}, ... }
+  -- Optional meal slots (opt-in) and roti/rice accompaniment with lunch & dinner.
+  include_brunch         TINYINT(1) NOT NULL DEFAULT 0,
+  include_evening_snack  TINYINT(1) NOT NULL DEFAULT 0,
+  include_accompaniment  TINYINT(1) NOT NULL DEFAULT 1,
+  -- Per-weekday rules: { "monday": {"diet":"egg","egg":1,"onion":1,"garlic":1}, ... }
   day_rules            JSON NOT NULL,
   created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -111,9 +122,10 @@ CREATE TABLE IF NOT EXISTS meal_plan_items (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   meal_plan_id  BIGINT UNSIGNED NOT NULL,
   day_of_week   TINYINT UNSIGNED NOT NULL,  -- 0=Mon .. 6=Sun
-  meal_type     ENUM('breakfast','lunch','dinner','snack') NOT NULL,
+  meal_type     ENUM('breakfast','brunch','lunch','dinner','snack') NOT NULL,
   recipe_id     BIGINT UNSIGNED NOT NULL,
   is_kid_addon  TINYINT(1) NOT NULL DEFAULT 0,
+  slot_role     ENUM('main','side') NOT NULL DEFAULT 'main', -- 'side' = bread/rice accompaniment
   servings      TINYINT UNSIGNED NOT NULL DEFAULT 1,
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

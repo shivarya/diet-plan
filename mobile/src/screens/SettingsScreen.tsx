@@ -15,9 +15,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ApiService from '../services/api';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { DietaryPreferences, WEEKDAYS, Weekday } from '../types';
+import { DietaryPreferences, DietType, WEEKDAYS, Weekday } from '../types';
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+const DIET_OPTIONS: { value: DietType; label: string }[] = [
+  { value: 'veg', label: 'Veg' },
+  { value: 'egg', label: 'Egg' },
+  { value: 'nonveg', label: 'Non-veg' },
+];
 
 export default function SettingsScreen() {
   const { colors, theme, setTheme } = useTheme();
@@ -33,12 +39,31 @@ export default function SettingsScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  const setRule = (day: Weekday, key: 'egg' | 'onion' | 'garlic', value: boolean) => {
+  const setRule = (day: Weekday, key: 'onion' | 'garlic', value: boolean) => {
     setPrefs((p) =>
       p
         ? { ...p, day_rules: { ...p.day_rules, [day]: { ...p.day_rules[day], [key]: value ? 1 : 0 } } }
         : p,
     );
+  };
+
+  const setDiet = (day: Weekday, diet: DietType) => {
+    setPrefs((p) =>
+      p
+        ? {
+            ...p,
+            day_rules: {
+              ...p.day_rules,
+              // Keep the legacy `egg` flag in sync with the diet level.
+              [day]: { ...p.day_rules[day], diet, egg: diet === 'veg' ? 0 : 1 },
+            },
+          }
+        : p,
+    );
+  };
+
+  const setFlag = (key: 'include_brunch' | 'include_evening_snack' | 'include_accompaniment', value: boolean) => {
+    setPrefs((p) => (p ? { ...p, [key]: value ? 1 : 0 } : p));
   };
 
   const setNum = (key: keyof DietaryPreferences, value: string) => {
@@ -88,39 +113,56 @@ export default function SettingsScreen() {
         ) : null}
 
         {/* Per-day rules */}
-        <Text style={[styles.section, { color: colors.text }]}>Daily rules</Text>
+        <Text style={[styles.section, { color: colors.text }]}>Daily food rules</Text>
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          Toggle whether egg, onion and garlic are allowed on each day. Defaults: no egg on Tue/Thu/Sat,
-          no onion/garlic on Thursday.
+          Pick the food type for each day and whether onion/garlic are allowed. Defaults: vegetarian on
+          Tue/Thu/Sat (egg on other days), no onion/garlic on Thursday.
         </Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.ruleHeader}>
-            <Text style={[styles.ruleHeaderDay, { color: colors.textSecondary }]}>Day</Text>
-            <View style={styles.ruleHeaderCols}>
-              <Text style={[styles.ruleCol, { color: colors.textSecondary }]}>Egg</Text>
-              <Text style={[styles.ruleCol, { color: colors.textSecondary }]}>Onion</Text>
-              <Text style={[styles.ruleCol, { color: colors.textSecondary }]}>Garlic</Text>
-            </View>
-          </View>
-          {WEEKDAYS.map((day) => (
-            <View key={day} style={[styles.ruleRow, { borderTopColor: colors.border }]}>
-              <Text style={[styles.ruleDay, { color: colors.text }]}>{cap(day)}</Text>
-              <View style={styles.ruleHeaderCols}>
-                <View style={styles.ruleCol}>
-                  <Switch
-                    value={prefs.day_rules[day].egg === 1}
-                    onValueChange={(v) => setRule(day, 'egg', v)}
-                    trackColor={{ true: colors.primary }}
-                  />
-                </View>
-                <View style={styles.ruleCol}>
+          {WEEKDAYS.map((day, i) => (
+            <View
+              key={day}
+              style={[styles.dayBlock, i > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
+            >
+              <View style={styles.dayBlockHeader}>
+                <Text style={[styles.ruleDay, { color: colors.text }]}>{cap(day)}</Text>
+              </View>
+              <View style={[styles.segmented, { borderColor: colors.border }]}>
+                {DIET_OPTIONS.map((opt) => {
+                  const active = prefs.day_rules[day].diet === opt.value;
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[
+                        styles.segment,
+                        { backgroundColor: active ? colors.primary : 'transparent' },
+                      ]}
+                      onPress={() => setDiet(day, opt.value)}
+                    >
+                      <Text
+                        style={{
+                          color: active ? colors.onPrimary : colors.textSecondary,
+                          fontWeight: '700',
+                          fontSize: 13,
+                        }}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={styles.flagRow}>
+                <View style={styles.flagItem}>
+                  <Text style={[styles.flagLabel, { color: colors.textSecondary }]}>Onion</Text>
                   <Switch
                     value={prefs.day_rules[day].onion === 1}
                     onValueChange={(v) => setRule(day, 'onion', v)}
                     trackColor={{ true: colors.primary }}
                   />
                 </View>
-                <View style={styles.ruleCol}>
+                <View style={styles.flagItem}>
+                  <Text style={[styles.flagLabel, { color: colors.textSecondary }]}>Garlic</Text>
                   <Switch
                     value={prefs.day_rules[day].garlic === 1}
                     onValueChange={(v) => setRule(day, 'garlic', v)}
@@ -130,6 +172,35 @@ export default function SettingsScreen() {
               </View>
             </View>
           ))}
+        </View>
+
+        {/* Meal slots */}
+        <Text style={[styles.section, { color: colors.text }]}>Meals</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.rowBetween}>
+            <Text style={[styles.label, { color: colors.text }]}>Add roti / rice with lunch & dinner</Text>
+            <Switch
+              value={prefs.include_accompaniment === 1}
+              onValueChange={(v) => setFlag('include_accompaniment', v)}
+              trackColor={{ true: colors.primary }}
+            />
+          </View>
+          <View style={styles.rowBetween}>
+            <Text style={[styles.label, { color: colors.text }]}>Include a brunch slot</Text>
+            <Switch
+              value={prefs.include_brunch === 1}
+              onValueChange={(v) => setFlag('include_brunch', v)}
+              trackColor={{ true: colors.primary }}
+            />
+          </View>
+          <View style={styles.rowBetween}>
+            <Text style={[styles.label, { color: colors.text }]}>Include an evening snack</Text>
+            <Switch
+              value={prefs.include_evening_snack === 1}
+              onValueChange={(v) => setFlag('include_evening_snack', v)}
+              trackColor={{ true: colors.primary }}
+            />
+          </View>
         </View>
 
         {/* Nutrition targets */}
@@ -222,12 +293,14 @@ const styles = StyleSheet.create({
   section: { fontSize: 16, fontWeight: '700', marginTop: 24, marginBottom: 6 },
   hint: { fontSize: 12, lineHeight: 18, marginBottom: 8 },
   card: { borderRadius: 14, borderWidth: 1, padding: 14 },
-  ruleHeader: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8 },
-  ruleHeaderDay: { flex: 1, fontSize: 12, fontWeight: '700' },
-  ruleHeaderCols: { flexDirection: 'row', width: 200, justifyContent: 'space-between' },
-  ruleCol: { width: 60, alignItems: 'center', fontSize: 12, fontWeight: '700' },
-  ruleRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, paddingVertical: 6 },
-  ruleDay: { flex: 1, fontSize: 14, fontWeight: '600' },
+  dayBlock: { paddingVertical: 12 },
+  dayBlockHeader: { marginBottom: 8 },
+  ruleDay: { fontSize: 15, fontWeight: '700' },
+  segmented: { flexDirection: 'row', borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
+  segment: { flex: 1, alignItems: 'center', paddingVertical: 8 },
+  flagRow: { flexDirection: 'row', gap: 28, marginTop: 10 },
+  flagItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  flagLabel: { fontSize: 13, fontWeight: '600' },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
   label: { fontSize: 14, fontWeight: '600' },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, minWidth: 90, textAlign: 'right' },

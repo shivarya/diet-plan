@@ -38,8 +38,10 @@ function generateAiPlan(int $userId, string $weekStart): array
     $system = "You are a meal-planning assistant for a weight-loss diet app. "
       . "You select recipes ONLY from the provided catalog by their numeric id. "
       . "Goals per day: high protein, high calcium, vitamin-rich, very low carb, balanced for weight loss. "
-      . "Cuisine is Indian or Indian-twist. Respect each day's rules strictly: when egg=0 do not pick a recipe with egg=1; "
-      . "when onion=0 do not pick onion=1; when garlic=0 do not pick garlic=1. "
+      . "Cuisine is Indian or Indian-twist. Respect each day's rules strictly. "
+      . "Each day has a diet level: 'veg' allows only food_type=veg; 'egg' allows food_type veg or egg; "
+      . "'nonveg' allows any food_type. Never pick a recipe whose food_type exceeds the day's diet level. "
+      . "When onion=0 do not pick onion=1; when garlic=0 do not pick garlic=1. "
       . "Pick breakfast, lunch and dinner for every weekday from recipes whose meal_type matches the slot. "
       . "Avoid repeating the same recipe id across the week. "
       . ($hasKid ? "Also pick one kid-friendly (kid=1) recipe id per day as 'kid'. " : "")
@@ -69,7 +71,9 @@ function generateAiPlan(int $userId, string $weekStart): array
     $aiDay = is_array($aiOut[weekdayKey($dow)] ?? null) ? $aiOut[weekdayKey($dow)] : [];
     $resolved[$dow] = ['meals' => [], 'kid' => []];
 
-    foreach (['breakfast', 'lunch', 'dinner'] as $slot) {
+    // AI fills breakfast/lunch/dinner; any other enabled slot (brunch/snack)
+    // backfills from the rule plan below.
+    foreach ($engine->enabledSlots($prefs) as $slot) {
       $id = isset($aiDay[$slot]) ? (int)$aiDay[$slot] : 0;
       $row = $id ? $engine->getRecipeRow($id) : null;
       $valid = $row && $row['meal_type'] === $slot && $engine->recipeSatisfiesRules($id, $rules);
@@ -116,9 +120,10 @@ function aiFromIngredients()
 
   $prefs = loadOrCreatePreferences($db, $userId);
   $day = strtolower((string)($input['day'] ?? ''));
+  // No specific day = "Any" = no restriction (non-veg allowed).
   $rules = in_array($day, WEEKDAY_KEYS, true)
     ? $prefs['day_rules'][$day]
-    : ['egg' => 1, 'onion' => 1, 'garlic' => 1];
+    : ['diet' => 'nonveg', 'egg' => 1, 'onion' => 1, 'garlic' => 1];
 
   $ai = new AIClient();
   if (!$ai->isConfigured()) {
@@ -126,11 +131,14 @@ function aiFromIngredients()
     return;
   }
 
+  $diet = $rules['diet'] ?? (empty($rules['egg']) ? 'veg' : 'egg');
   $ruleText = [];
-  if (empty($rules['egg']))    $ruleText[] = 'no egg';
+  if ($diet === 'veg')         $ruleText[] = 'strictly vegetarian (no egg, no meat, no fish)';
+  elseif ($diet === 'egg')     $ruleText[] = 'vegetarian, egg allowed (no meat or fish)';
+  else                         $ruleText[] = 'non-vegetarian allowed (meat, fish or egg are fine)';
   if (empty($rules['onion']))  $ruleText[] = 'no onion';
   if (empty($rules['garlic'])) $ruleText[] = 'no garlic';
-  $constraints = $ruleText ? implode(', ', $ruleText) : 'no special restrictions';
+  $constraints = implode(', ', $ruleText);
 
   $system = "You are an Indian home-cooking assistant for a weight-loss diet app. "
     . "Suggest ONE healthy dish (Indian or popular Indian-twist like pasta/noodles/fried rice) "

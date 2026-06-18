@@ -1,4 +1,6 @@
-export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export type MealType = 'breakfast' | 'brunch' | 'lunch' | 'dinner' | 'snack';
+
+export type DietType = 'veg' | 'egg' | 'nonveg';
 
 export type Weekday =
   | 'monday'
@@ -20,7 +22,8 @@ export const WEEKDAYS: Weekday[] = [
 ];
 
 export interface DayRule {
-  egg: number; // 1 = allowed, 0 = excluded
+  diet: DietType; // veg | egg (veg+egg) | nonveg
+  egg: number; // 1 = allowed, 0 = excluded (derived from diet; kept for back-compat)
   onion: number;
   garlic: number;
 }
@@ -44,6 +47,9 @@ export interface DietaryPreferences {
   calcium_target_mg: number;
   has_kid: number;
   kid_age: number | null;
+  include_brunch: number;
+  include_evening_snack: number;
+  include_accompaniment: number;
   day_rules: DayRules;
 }
 
@@ -53,6 +59,8 @@ export interface Recipe {
   name: string;
   cuisine: string;
   meal_type: MealType;
+  food_type: DietType;
+  dish_category: 'main' | 'bread' | 'rice' | 'snack' | 'beverage';
   servings: number;
   calories: number;
   protein_g: number;
@@ -73,21 +81,31 @@ export interface Recipe {
   prep_time_min: number;
   difficulty: 'easy' | 'medium' | 'hard';
   image_url: string | null;
+  video_url: string | null;
 }
+
+export type SlotRole = 'main' | 'side';
 
 export interface MealItem {
   item_id: number;
   meal_type: MealType;
   is_kid_addon: boolean;
+  slot_role: SlotRole;
   servings: number;
   recipe: Recipe;
+}
+
+/** A meal slot holds a main dish and an optional bread/rice side. */
+export interface MealSlot {
+  main: MealItem | null;
+  side: MealItem | null;
 }
 
 export interface DayPlan {
   day_of_week: number;
   weekday: Weekday;
   rules: DayRule;
-  meals: Partial<Record<MealType, MealItem>>;
+  meals: Partial<Record<MealType, MealSlot>>;
   kid_addons: MealItem[];
   totals: {
     calories: number;

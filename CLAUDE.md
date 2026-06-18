@@ -17,11 +17,14 @@ cd "c:\Users\Ash\Documents\Projects\apps\diet-plan\server" ; php -S localhost:80
 
 A weekly meal-planner: high-protein, high-calcium, vitamin-rich, **very low carb**, balanced for weight loss. Food is Indian (plus Indian-twist foreign dishes — pasta, Hakka noodles, fried rice). Key rules:
 
-- Vegetarian; **egg allowed except Tue/Thu/Sat** (default, editable per day).
-- **No onion/garlic on Thursday** by default; any day's onion/garlic/egg rule is editable in Settings.
+- **Per-day diet level**, editable in Settings: `veg` / `egg` (veg + egg) / `nonveg` (meat/fish). Defaults are vegetarian — egg on Mon/Wed/Fri/Sun, veg on Tue/Thu/Sat. Stored as `diet` in the `day_rules` JSON (the legacy `egg` flag is derived from it for back-compat).
+- **No onion/garlic on Thursday** by default; any day's onion/garlic/diet rule is editable.
+- **Roti/rice side**: lunch & dinner get a main dish + a bread/rice accompaniment (each shuffleable). Opt-out via `include_accompaniment`.
+- **Optional slots**: brunch and an evening snack are opt-in per user (`include_brunch`, `include_evening_snack`); base slots are breakfast/lunch/dinner.
 - A **kid add-on** dish is added per day when "kid at home" is on.
-- Any dish can be **shuffled** for an alternative that still satisfies that day's rules.
-- Free **rule-based** planner; **premium** AI features (AI-generated plan + "cook from ingredients").
+- Any dish can be **shuffled** for an alternative that still satisfies that day's rules (a side shuffles within the bread/rice pool).
+- **Dish photos** render via `mobile/src/components/RecipeImage.tsx` (curated `image_url` → keyword food photo → themed placeholder; `expo-image` disk cache). Recipe detail also has **WhatsApp share** (`Share.share`) and a **YouTube link** (`video_url` or a search by name).
+- Free **rule-based** planner; **premium** AI features (AI-generated plan + "cook from ingredients"; both diet-aware).
 
 ## Project Layout
 
@@ -73,7 +76,7 @@ Single entry point parses the URI (strips a `/diet_plan` or `/api` base path) an
 Per day: apply egg/onion/garlic rules as a **hard filter**, then **soft-score** the remaining recipes (protein, calcium, low-carb, vitamins, weight-loss tag; penalties for repeating within the week and exceeding the daily carb budget; small jitter for variety). Fills breakfast/lunch/dinner + one kid add-on (when `has_kid`). `shuffleItem()` re-runs a single slot excluding dishes already in the plan.
 
 ### Data model (`server/database/schema.sql`)
-`users` (+`is_premium`), `recipes` (nutrition + flags: `contains_egg/onion/garlic`, `is_kid_friendly/high_protein/low_carb/weight_loss`, `ingredients` JSON), `dietary_preferences` (`day_rules` JSON), `meal_plans`, `meal_plan_items` (`is_kid_addon`). Recipes seeded from `database/seed/recipes.json` (~96 curated dishes) via `scripts/seed.php` (idempotent upsert by `slug`).
+`users` (+`is_premium`), `recipes` (nutrition + flags: `contains_egg/onion/garlic`, `is_kid_friendly/high_protein/low_carb/weight_loss`, `food_type` veg/egg/nonveg, `dish_category` main/bread/rice/snack/beverage, `image_url`, `video_url`, `ingredients` JSON), `dietary_preferences` (`day_rules` JSON + `include_brunch/include_evening_snack/include_accompaniment`), `meal_plans`, `meal_plan_items` (`is_kid_addon`, `slot_role` main/side). Recipes seeded from `database/seed/recipes.json` (~145 curated dishes incl. non-veg + bread/rice) via `scripts/seed.php` (idempotent upsert by `slug`). Schema changes after the initial deploy ship as `database/migrations/NNN_*.sql` (ALTERs) — apply those to the live DB, don't re-import `schema.sql`.
 
 ### Mobile — React Native (`mobile/`)
 `App.tsx` wraps `ThemeProvider > AuthProvider > NavigationContainer > RootNavigator`. `RootNavigator` gates Login vs the bottom-tab `AppNavigator` (Plan stack, Cook AI, Settings). `src/services/api.ts` is an Axios client with a JWT request interceptor and 401→logout. Screens: `WeeklyPlanScreen` (day cards, constraint badges, per-dish shuffle, rule/AI generate), `RecipeDetailScreen`, `SettingsScreen` (per-day rule editor, targets, kid toggle, theme, **dev Premium switch**), `CookFromIngredientsScreen` (premium).

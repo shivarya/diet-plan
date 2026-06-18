@@ -37,14 +37,19 @@ function updatePreferences()
   $calcium  = isset($input['calcium_target_mg'])    ? (int)$input['calcium_target_mg']    : $current['calcium_target_mg'];
   $hasKid   = isset($input['has_kid'])              ? (int)!!$input['has_kid']            : $current['has_kid'];
   $kidAge   = array_key_exists('kid_age', $input)   ? ($input['kid_age'] !== null ? (int)$input['kid_age'] : null) : $current['kid_age'];
+  $brunch   = isset($input['include_brunch'])        ? (int)!!$input['include_brunch']        : $current['include_brunch'];
+  $evSnack  = isset($input['include_evening_snack'])  ? (int)!!$input['include_evening_snack'] : $current['include_evening_snack'];
+  $accomp   = isset($input['include_accompaniment'])  ? (int)!!$input['include_accompaniment'] : $current['include_accompaniment'];
   $dayRules = array_key_exists('day_rules', $input) ? normalizeDayRules($input['day_rules']) : $current['day_rules'];
 
   $db->execute(
     "UPDATE dietary_preferences
        SET daily_calorie_target = ?, protein_floor_g = ?, carb_ceiling_g = ?,
-           calcium_target_mg = ?, has_kid = ?, kid_age = ?, day_rules = ?
+           calcium_target_mg = ?, has_kid = ?, kid_age = ?,
+           include_brunch = ?, include_evening_snack = ?, include_accompaniment = ?, day_rules = ?
      WHERE user_id = ?",
-    [$calorie, $protein, $carb, $calcium, $hasKid, $kidAge, json_encode($dayRules), $userId]
+    [$calorie, $protein, $carb, $calcium, $hasKid, $kidAge,
+     $brunch, $evSnack, $accomp, json_encode($dayRules), $userId]
   );
 
   $prefs = loadOrCreatePreferences($db, $userId);
