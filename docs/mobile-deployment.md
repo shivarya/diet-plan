@@ -22,50 +22,44 @@ The Groq key lives in the **server** `.env`, not in the mobile app. If you haven
 
 ### 1b. Google OAuth Client IDs (Google Sign-In)
 
-You need **two** client IDs from Google Cloud Console: a **Web** client ID for the server (to verify tokens server-side) and an **Android** client ID for the app (to initiate sign-in). Follow [docs/server-deployment.md §5b](server-deployment.md#5b-google-oauth-web-client-id-google-sign-in) first to create the OAuth consent screen and the Web client ID, then come back here for the Android one.
+You need a **Web** OAuth client and one or more **Android** OAuth clients — **all in the same Google Cloud project**. They play different roles:
 
-**Creating the Android client ID:**
+- **The Web client ID is what goes in the app and the server.** Set `mobile/app.json` → `extra.googleClientId` to the **Web** client ID (it's passed as `webClientId`), and the server `.env` `GOOGLE_CLIENT_ID` to the **same** value. Google issues ID tokens with `aud = Web client ID`, which the server verifies.
+  > ⚠️ Putting an **Android** client ID in `googleClientId` causes `DEVELOPER_ERROR`. It must be the **Web application** type.
 
-> You need the SHA-1 fingerprint of your keystore first — do §3 (Keystore) before this step.
+- **Each Android client authorises one *signed build*** to use Google Sign-In (package name + SHA-1). It is **never referenced in code** — it just has to exist. Register one per signing key, all with package `dev.shivarya.dietplan`:
 
-1. **[Google Cloud Console](https://console.cloud.google.com)** → same project as §5b in the server guide
-2. **APIs & Services → Credentials → + Create Credentials → OAuth 2.0 Client ID**
-   - Application type: **Android**
-   - Package name: `dev.shivarya.dietplan`
-   - SHA-1 certificate fingerprint: paste from `eas credentials --platform android`
-   - Click **Create** → copy the **Client ID**
-3. In `mobile/app.json` → `extra`, set:
+  | Build | Where its SHA-1 comes from |
+  |---|---|
+  | `npm run android` (debug) | `keytool -list -v -keystore mobile/android/app/debug.keystore -alias androiddebugkey -storepass android` |
+  | EAS production build | `eas credentials --platform android` |
+  | Google Play (after 1st release) | Play Console → *Test and release → App signing* |
 
-```json
-{
-  "apiUrl": "https://shivarya.dev/diet_plan",
-  "googleClientId": "<Android client ID from above>"
-}
-```
+**Setup:** in **[Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials**, create the **Web application** client (copy its ID into `app.json` + server `.env`), then a **+ Create Credentials → OAuth client ID → Android** for each SHA-1 above. Re-check the same project owns all of them.
 
-4. **`GOOGLE_ALLOWED_AUDIENCES` is not needed** — the app uses the Web client ID as `webClientId`, so Google issues tokens with `aud = Web client ID`, which the server already accepts via `GOOGLE_CLIENT_ID`. Leave `GOOGLE_ALLOWED_AUDIENCES` blank unless you add an iOS build later.
+`GOOGLE_ALLOWED_AUDIENCES` stays blank for an Android-only setup.
 
 ---
 
 ## 2. Configure EAS
 
-`eas.json` is already present. Review it:
+`eas.json` is already present:
 
 ```json
 {
+  "cli": { "version": ">= 16.27.0", "appVersionSource": "remote" },
   "build": {
     "development": { "developmentClient": true, "distribution": "internal" },
     "preview": { "distribution": "internal" },
-    "production": {}
-  }
+    "production": { "autoIncrement": true }
+  },
+  "submit": { "production": {} }
 }
 ```
 
-Init the project with EAS (first time only):
-```powershell
-cd "c:\Users\Ash\Documents\Projects\apps\diet-plan\mobile"
-eas build:configure
-```
+`appVersionSource: "remote"` + `autoIncrement` means **EAS manages `versionCode`** (bumped automatically each production build) — you don't set it in `app.json`. The human-facing `version` (e.g. `1.0.0`) does live in `app.json` and you bump it manually for releases.
+
+The project is already linked (`extra.eas.projectId` is set in `app.json`); `eas build:configure` is only needed if that's ever missing.
 
 ---
 
@@ -142,6 +136,7 @@ For native changes (new permissions, native modules) a full EAS build + Play Sto
 |---------|-----|
 | "apiClient is null — call configure() first" | `googleClientId` not set in `app.json` extra; use dev login for local testing |
 | Network error on device | Run `adb reverse tcp:8000 tcp:8000`; PHP must be `php -S 0.0.0.0:8000` not `localhost:8000` |
-| Build fails: peer dep conflict | `npm install --legacy-peer-deps` |
-| Google Sign-In fails on Play build | SHA-1 in Google Cloud Console doesn't match EAS keystore — run `eas credentials` to get the correct fingerprint |
+| Build fails: peer dep conflict | `npm install --legacy-peer-deps` (an `.npmrc` with `legacy-peer-deps=true` is committed) |
+| `DEVELOPER_ERROR` on Google Sign-In | (1) `googleClientId` must be the **Web** client ID, not Android; (2) the build's signing SHA-1 must be registered as an **Android** client (package `dev.shivarya.dietplan`) in the **same project** — see §1b. Get the EAS build SHA-1 from `eas credentials --platform android` |
+| Premium/admin not unlocking | Set `PREMIUM_EMAILS` / `ADMIN_EMAILS` (comma-separated) in the **server** `.env`; the user re-launches to refresh |
 | AI features return 503 | `GROQ_API_KEY` not set in server `.env` |
