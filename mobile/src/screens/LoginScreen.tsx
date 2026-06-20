@@ -51,11 +51,14 @@ export default function LoginScreen() {
               <Text style={[styles.btnText, { color: colors.onPrimary }]}>Continue with Google</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.devBtn} onPress={() => run(devLogin, 'Dev login')}>
-              <Text style={[styles.devText, { color: colors.textSecondary }]}>
-                Use dev login (local testing)
-              </Text>
-            </TouchableOpacity>
+            {/* Dev login is for local testing only — never shown in release builds. */}
+            {__DEV__ ? (
+              <TouchableOpacity style={styles.devBtn} onPress={() => run(devLogin, 'Dev login')}>
+                <Text style={[styles.devText, { color: colors.textSecondary }]}>
+                  Use dev login (local testing)
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </>
         )}
       </View>
