@@ -6,6 +6,15 @@ The version + build number live in `release-version.json`; `npm run version:bump
 bumps the patch + versionCode and syncs them into `package.json`, `app.json` and the
 Android `build.gradle`. Add an entry here for every feature/fix before bumping.
 
+## [1.0.1] - 2026-06-18
+First build submitted to Google Play (internal testing track).
+
+### Fixed
+- The **"Use dev login" button no longer appears in release builds** — it's a development-only control, now gated behind `__DEV__` (the server already rejected it in production).
+
+### Google Play Notes
+- First release: plan a high-protein, low-carb Indian week — choose veg / egg / non-veg per day, get roti/rice sides, dish photos, step-by-step recipes in 12 Indian languages, WhatsApp share, and (premium) AI plans + cook-from-ingredients.
+
 ## [1.0.0] - 2026-06-18
 First public release — a high-protein, high-calcium, very-low-carb weekly Indian meal planner.
 
