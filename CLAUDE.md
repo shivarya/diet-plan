@@ -59,7 +59,9 @@ npm run android                                    # build + install on Android 
 npm run build:production                            # bump version (release-version.json → app.json/build.gradle) + EAS prod build
 ```
 
-**Releases**: `release-version.json` (`{version, versionCode}`) is the source of truth; `npm run version:bump:production` bumps patch + versionCode and syncs them. Add a `mobile/CHANGELOG.md` entry per feature/fix before bumping (same pattern as `expense-tracker`). See [docs/mobile-deployment.md](docs/mobile-deployment.md) §4–4a.
+**Releases**: `release-version.json` (`{version, versionCode}`) is the source of truth; `npm run version:bump:production` bumps patch + versionCode and syncs them. See [docs/mobile-deployment.md](docs/mobile-deployment.md) §4–4a.
+
+> **ALWAYS update `mobile/CHANGELOG.md` for every user-facing mobile feature or fix — before bumping the version or kicking a build.** Add it under a new `## [x.y.z] - YYYY-MM-DD` heading with `### Added/Changed/Fixed` sections plus a **Google Play Notes** block (that block is copied verbatim into the Play "What's new" field). Same pattern as `expense-tracker`. Do this as part of the feature's own change, not as an afterthought.
 
 ---
 
