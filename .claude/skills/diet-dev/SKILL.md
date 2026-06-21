@@ -3,7 +3,7 @@ name: diet-dev
 description: Run the Diet Plan app locally — start MySQL + the PHP API (port 8000) and the Expo mobile app. Use to develop or test diet-plan.
 ---
 
-Start the Diet Plan backend and mobile app for local development. The mobile app (Android emulator) reaches the host PHP server at `http://10.0.2.2:8000`.
+Start the Diet Plan backend and mobile app for local development. The mobile app reaches the host PHP server at `http://localhost:8000` via an `adb reverse tcp:8000 tcp:8000` tunnel (more reliable than the `10.0.2.2` emulator alias). Note: `app.json` `extra.apiUrlDev` may currently point at production — set it to `http://localhost:8000` to develop against the local API.
 
 ## One-time setup
 

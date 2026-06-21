@@ -19,10 +19,15 @@ Deploy the Diet Plan **PHP** API (`server/`) to cPanel at `https://shivarya.dev/
 3. **Configure** the production `.env` on the server (do NOT upload your local `.env`):
    - `DB_HOST, DB_NAME=<cpanelprefix>_diet_plan, DB_USER, DB_PASS`
    - `JWT_SECRET` (a long random secret)
-   - `GOOGLE_CLIENT_ID` (+ `GOOGLE_ALLOWED_AUDIENCES` for native client IDs)
+   - `GOOGLE_CLIENT_ID` = the **Web** OAuth client ID (must match `app.json` `extra.googleClientId`; `GOOGLE_ALLOWED_AUDIENCES` stays blank for Android-only)
    - `AI_PROVIDER=groq`, `AI_MODEL=llama-3.3-70b-versatile`, `GROQ_API_KEY`
    - `ALLOW_DEV_LOGIN=false`
-4. **Database**: create the MySQL DB + user in cPanel, import `server/database/schema.sql` (phpMyAdmin or `mysql < schema.sql`), then **seed recipes**: `php scripts/seed.php` on the host (or import a dump). Apply any numbered `database/migrations/*.sql` in order.
+   - `PREMIUM_EMAILS=` comma-separated emails comped to premium (no billing yet)
+   - `ADMIN_EMAILS=` comma-separated curator emails (can set recipe images for all users; admins are premium too)
+   - Env-only changes (e.g. adding an email to `PREMIUM_EMAILS`/`ADMIN_EMAILS`) take effect on the user's next launch — **no redeploy needed**.
+4. **Database**:
+   - **Fresh DB**: create the MySQL DB + user in cPanel, import `server/database/schema.sql`, then **seed**: `php scripts/seed.php`, then **populate dish photos**: `php scripts/backfill-images.php` (resolves a LoremFlickr image per recipe, stored once).
+   - **Existing/live DB (updates)**: do NOT re-import `schema.sql` (it's `CREATE TABLE IF NOT EXISTS` — won't alter existing tables). Apply the numbered `database/migrations/NNN_*.sql` in order (back up first), then re-run `php scripts/seed.php` if `recipes.json` changed. Migrations so far: `001_food_type_slots_sides.sql`, `002_recipe_details.sql`.
 5. **Verify**: `Invoke-RestMethod https://shivarya.dev/diet_plan/health` returns `{ "success": true, ... }` (works before the DB exists — `/health` does not touch the DB). `GET /recipes` without a token must return a 401 JSON (proves routing reaches `index.php`, not the SPA). With a valid Bearer token, spot-check `POST /meal-plans/generate?mode=rule` and confirm Thursday has no egg/onion/garlic.
 6. **Mobile**: point `app.json` `extra.apiUrl` at `https://shivarya.dev/diet_plan` and set `extra.googleClientId`; ship via EAS (see `play-store-assets` for icons).
 
