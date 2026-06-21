@@ -105,6 +105,7 @@ export interface MealSlot {
 export interface DayPlan {
   day_of_week: number;
   weekday: Weekday;
+  date: string; // YYYY-MM-DD for this day in the rolling week (starts today)
   rules: DayRule;
   meals: Partial<Record<MealType, MealSlot>>;
   kid_addons: MealItem[];
@@ -125,15 +126,41 @@ export interface MealPlan {
   days: DayPlan[];
 }
 
-export interface IngredientDish {
+/** One full AI-generated recipe from "cook from ingredients". */
+export interface IngredientRecipe {
   name: string;
   meal_type: MealType;
-  ingredients_used: string[];
+  serves: number;
+  total_time_min: number;
+  twist?: string;
+  ingredients: { item: string; quantity: string }[];
   extra_ingredients_needed: string[];
   steps: string[];
+  tips: string[];
   approx: { calories: number; protein_g: number; carbs_g: number };
   notes: string;
+}
+
+/** Response of POST /ai/from-ingredients: 2-3 recipes + the constraints applied. */
+export interface IngredientSuggestion {
+  dishes: IngredientRecipe[];
   applied_constraints?: string;
+  language?: string;
+}
+
+/** Options the user can pass to refine "cook from ingredients". */
+export interface CookOptions {
+  diet?: DietType;
+  onion?: number;
+  garlic?: number;
+  meal_type?: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  servings?: number;
+  time?: 'any' | 'quick' | 'standard' | 'elaborate';
+  cuisine?: 'any' | 'north-indian' | 'south-indian' | 'indo-chinese' | 'continental';
+  spice?: 'any' | 'mild' | 'medium' | 'spicy';
+  equipment?: string[];
+  language?: string;
+  preferences?: string;
 }
 
 // Detailed/translated recipe (AI-generated, cached server-side).

@@ -194,8 +194,10 @@ function generateAiPlan(int $userId, string $weekStart): array
 }
 
 /**
- * Premium: "cook from my ingredients" — suggest one dish from the user's available
- * ingredients, honouring the chosen day's egg/onion/garlic rules.
+ * Premium: "cook from my ingredients" — suggest 2-3 full, beginner-friendly
+ * recipes from the user's available ingredients plus optional preferences
+ * (meal type, servings, time, cuisine, spice, equipment, output language and a
+ * free-text twist), honouring the chosen diet + onion/garlic rules.
  */
 function aiFromIngredients()
 {
@@ -245,28 +247,104 @@ function aiFromIngredients()
   if (empty($rules['garlic'])) $ruleText[] = 'no garlic';
   $constraints = implode(', ', $ruleText);
 
+  // --- Optional refinement parameters (all best-effort; defaults = "any") ---
+  $mealType = strtolower((string)($input['meal_type'] ?? 'any'));
+  if (!in_array($mealType, ['breakfast', 'lunch', 'dinner', 'snack', 'any'], true)) {
+    $mealType = 'any';
+  }
+
+  $servings = (int)($input['servings'] ?? 0);
+  if ($servings < 1 || $servings > 12) $servings = 0;
+
+  $language = (string)($input['language'] ?? 'English');
+  if (!in_array($language, RECIPE_LANGUAGES, true)) $language = 'English';
+
+  $timeMap = [
+    'quick'     => 'Ready in about 20 minutes or less.',
+    'standard'  => 'About 30 to 45 minutes is fine.',
+    'elaborate' => 'A more elaborate dish (around an hour) is welcome.',
+  ];
+  $cuisineMap = [
+    'north-indian' => 'North Indian style.',
+    'south-indian' => 'South Indian style.',
+    'indo-chinese' => 'Indo-Chinese style (Hakka noodles, fried rice, Manchurian and the like).',
+    'continental'  => 'Continental with an Indian twist (e.g. pasta, salads, grills).',
+  ];
+  $spiceMap = [
+    'mild'   => 'Keep it mild.',
+    'medium' => 'Medium spice level.',
+    'spicy'  => 'Make it spicy / bold.',
+  ];
+  $time    = strtolower((string)($input['time'] ?? ''));
+  $cuisine = strtolower((string)($input['cuisine'] ?? ''));
+  $spice   = strtolower((string)($input['spice'] ?? ''));
+
+  $equipment = is_array($input['equipment'] ?? null) ? $input['equipment'] : [];
+  $equipment = array_slice(array_values(array_filter(array_map('strval', $equipment))), 0, 6);
+
+  $prefsText = trim((string)($input['preferences'] ?? ''));
+  if (mb_strlen($prefsText) > 400) $prefsText = mb_substr($prefsText, 0, 400);
+
+  // Human-readable request lines fed to the model.
+  $ask = [];
+  $ask[] = $mealType === 'any'
+    ? 'Meal: any — pick the most fitting for each dish.'
+    : "Meal: {$mealType}.";
+  if ($servings > 0)          $ask[] = "Serves: {$servings}.";
+  if (isset($timeMap[$time]))       $ask[] = $timeMap[$time];
+  if (isset($cuisineMap[$cuisine])) $ask[] = $cuisineMap[$cuisine];
+  if (isset($spiceMap[$spice]))     $ask[] = $spiceMap[$spice];
+  if ($equipment) {
+    $ask[] = 'Cook using only: ' . implode(', ', $equipment) . '. Keep every step within this equipment.';
+  }
+  if ($prefsText !== '') $ask[] = "Extra preferences: {$prefsText}";
+
   $system = "You are an Indian home-cooking assistant for a weight-loss diet app. "
-    . "Suggest ONE healthy dish (Indian or popular Indian-twist like pasta/noodles/fried rice) "
-    . "that is high in protein, rich in calcium/vitamins, and low in carbs. "
-    . "Use mainly the user's available ingredients; you may list a few common extra ingredients. "
+    . "Suggest 2 to 3 DISTINCT healthy dishes (Indian or popular Indian-twist like pasta/noodles/fried rice) "
+    . "the user can cook mostly from their listed ingredients. Each dish must be high in protein, "
+    . "rich in calcium/vitamins and low in carbs. Use mainly the user's available ingredients; "
+    . "a few common extra ingredients are fine. "
     . "Strictly respect these dietary constraints: {$constraints}. "
-    . "Respond ONLY as JSON: {\"name\":string,\"meal_type\":\"breakfast|lunch|dinner|snack\","
-    . "\"ingredients_used\":[string],\"extra_ingredients_needed\":[string],\"steps\":[string],"
-    . "\"approx\":{\"calories\":number,\"protein_g\":number,\"carbs_g\":number},\"notes\":string}.";
+    . "Honour the user's requests (meal, servings, time, cuisine, spice level, equipment and any extra "
+    . "preferences) as closely as you can, and give each dish a short, creative twist that makes it unique. "
+    . "Give full, beginner-friendly instructions: precise ingredient quantities and clear numbered steps. "
+    . "Write ALL text — names, every ingredient item and quantity, the twist, steps, tips and notes — "
+    . "in {$language} using that language's native script (English may stay in Latin script). "
+    . "Respond ONLY as JSON: {\"dishes\":[{\"name\":string,\"meal_type\":\"breakfast|lunch|dinner|snack\","
+    . "\"serves\":number,\"total_time_min\":number,\"twist\":string,"
+    . "\"ingredients\":[{\"item\":string,\"quantity\":string}],\"extra_ingredients_needed\":[string],"
+    . "\"steps\":[string],\"tips\":[string],"
+    . "\"approx\":{\"calories\":number,\"protein_g\":number,\"carbs_g\":number},\"notes\":string}]}.";
 
-  $userMsg = "Available ingredients: " . implode(', ', $ingredients)
-    . ".\nDietary constraints: {$constraints}.";
+  $userMsg = "Available ingredients: " . implode(', ', $ingredients) . ".\n"
+    . "Dietary constraints: {$constraints}.\n"
+    . "Requests:\n- " . implode("\n- ", $ask);
 
-  $dish = $ai->chatCompletion([
+  $out = $ai->chatCompletion([
     ['role' => 'system', 'content' => $system],
     ['role' => 'user', 'content' => $userMsg],
-  ], 0.6, true);
+  ], 0.7, true);
 
-  if (!$dish) {
+  // Be lenient: accept {dishes:[...]}, a bare list, or a single dish object.
+  $dishes = [];
+  if (is_array($out['dishes'] ?? null)) {
+    $dishes = $out['dishes'];
+  } elseif (isset($out['name'])) {
+    $dishes = [$out];
+  } elseif (is_array($out) && isset($out[0])) {
+    $dishes = $out;
+  }
+  $dishes = array_values(array_filter($dishes, fn($d) => is_array($d) && !empty($d['name'])));
+  $dishes = array_slice($dishes, 0, 3);
+
+  if (!$dishes) {
     Response::error('Could not generate a dish right now. Please try again.', 502);
     return;
   }
 
-  $dish['applied_constraints'] = $constraints;
-  Response::success($dish, 'Dish suggested');
+  Response::success([
+    'dishes'              => $dishes,
+    'applied_constraints' => $constraints,
+    'language'            => $language,
+  ], 'Dishes suggested');
 }

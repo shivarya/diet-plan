@@ -21,6 +21,8 @@ class PlanEngine
   private array $accompanimentPool = [];
   private array $kidPool = [];
   private array $recipeById = [];
+  /** recipe_id => penalty for appearing in the user's recent plans (cross-week variety). */
+  private array $recentPenalty = [];
   /** Slot render/selection order; which slots are active depends on preferences. */
   private const SLOT_ORDER = ['breakfast', 'brunch', 'lunch', 'dinner', 'snack'];
   /** Slots that get a bread/rice side when accompaniments are enabled. */
@@ -55,6 +57,47 @@ class PlanEngine
       }
       if ($r['is_kid_friendly'] === 1) {
         $this->kidPool[] = $r;
+      }
+    }
+  }
+
+  /**
+   * Seed cross-week variety: penalise recipes used in the user's recent plans so
+   * the catalogue actually rotates over a month instead of repeating the same
+   * top-scored dishes every week. More-recent plans penalise more heavily, so old
+   * favourites gradually cycle back in. Soft (vs. the hard within-week penalty) so
+   * a small eligible pool never runs dry.
+   */
+  private function loadRecentUsage(int $userId, int $plans = 4): void
+  {
+    $this->recentPenalty = [];
+    $planRows = $this->db->fetchAll(
+      "SELECT id FROM meal_plans WHERE user_id = ?
+        ORDER BY week_start_date DESC, id DESC LIMIT " . (int)$plans,
+      [$userId]
+    );
+    if (empty($planRows)) {
+      return;
+    }
+
+    $rank = [];                 // plan_id => weight (most recent = highest)
+    $ids = [];
+    $weight = count($planRows);
+    foreach ($planRows as $pr) {
+      $rank[(int)$pr['id']] = $weight--;
+      $ids[] = (int)$pr['id'];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $items = $this->db->fetchAll(
+      "SELECT meal_plan_id, recipe_id FROM meal_plan_items WHERE meal_plan_id IN ($placeholders)",
+      $ids
+    );
+    foreach ($items as $it) {
+      $rid = (int)$it['recipe_id'];
+      $penalty = ($rank[(int)$it['meal_plan_id']] ?? 1) * 16; // ~16..64 over four weeks
+      if (($this->recentPenalty[$rid] ?? 0) < $penalty) {
+        $this->recentPenalty[$rid] = $penalty;
       }
     }
   }
@@ -120,6 +163,11 @@ class PlanEngine
       $score -= $allowUsed ? 50 : 500;
     }
 
+    // Cross-week variety: softly demote dishes from the user's recent plans.
+    if (!empty($this->recentPenalty[$r['id']])) {
+      $score -= $this->recentPenalty[$r['id']];
+    }
+
     // Jitter (0..5) so regenerations/shuffles vary.
     $score += mt_rand(0, 500) / 100.0;
     return $score;
@@ -177,6 +225,7 @@ class PlanEngine
    */
   public function generateWeeklyPlan(int $userId, string $weekStart, string $generatedBy = 'rule'): array
   {
+    $this->loadRecentUsage($userId);
     $prefs = loadOrCreatePreferences($this->db, $userId);
     $plan = $this->buildPlanData($prefs);
     return $this->persistPlan($userId, $weekStart, $generatedBy, $plan);
@@ -185,6 +234,7 @@ class PlanEngine
   /** Build (without persisting) the rule-based plan structure of recipe rows. */
   public function buildRulePlanRows(int $userId): array
   {
+    $this->loadRecentUsage($userId);
     return $this->buildPlanData(loadOrCreatePreferences($this->db, $userId));
   }
 
@@ -304,6 +354,7 @@ class PlanEngine
       throw new Exception('Plan item not found');
     }
 
+    $this->loadRecentUsage($userId);
     $prefs = loadOrCreatePreferences($this->db, $userId);
     $rules = $prefs['day_rules'][weekdayKey((int)$item['day_of_week'])];
     $isKid = (int)$item['is_kid_addon'] === 1;
@@ -418,13 +469,27 @@ class PlanEngine
       }
     }
 
+    // Present the week starting from *today*, each day tagged with its real date,
+    // so the user always sees the current day first. A weekday's dishes stay pinned
+    // to that weekday (rules are per-weekday) — we just rotate the start and attach
+    // dates. Seven consecutive days cover each weekday exactly once.
+    $today = new DateTime('today');
+    $ordered = [];
+    for ($offset = 0; $offset < 7; $offset++) {
+      $date = (clone $today)->modify("+{$offset} days");
+      $idx = ((int)$date->format('N')) - 1; // Mon=0 .. Sun=6, matches stored day_of_week
+      $day = $days[$idx];
+      $day['date'] = $date->format('Y-m-d');
+      $ordered[] = $day;
+    }
+
     return [
       'id' => (int)$plan['id'],
       'user_id' => (int)$plan['user_id'],
       'week_start_date' => $plan['week_start_date'],
       'generated_by' => $plan['generated_by'],
       'created_at' => $plan['created_at'],
-      'days' => array_values($days),
+      'days' => $ordered,
     ];
   }
 
@@ -475,6 +540,7 @@ class PlanEngine
   /** Persist an AI-proposed plan structure: [dow => ['meals'=>[slot=>recipeId], 'kid'=>[recipeId,...]]]. */
   public function persistResolvedPlan(int $userId, string $weekStart, array $resolved): array
   {
+    $this->loadRecentUsage($userId);
     $prefs = loadOrCreatePreferences($this->db, $userId);
     $carbCeiling = (int)$prefs['carb_ceiling_g'];
     $withSides = (int)($prefs['include_accompaniment'] ?? 1) === 1;

@@ -6,6 +6,21 @@ The version + build number live in `release-version.json`; `npm run version:bump
 bumps the patch + versionCode and syncs them into `package.json`, `app.json` and the
 Android `build.gradle`. Add an entry here for every feature/fix before bumping.
 
+## [1.0.2] - 2026-06-21
+
+### Added
+- **Bigger recipe catalogue (≈145 → ≈187 dishes).** Filled out the everyday vegetarian mains — ~28 breakfasts, ~33 lunches and ~32 dinners — plus more egg mains for egg days and a few extra breads/rice and non-veg dishes, so a full month can run without the same dish coming back.
+- **Weekly plan now shows the date for each day** and **starts on the current day** — today is the first card (tagged "Today"), then the next six days, each with its calendar date.
+
+### Changed
+- **Cook from ingredients (premium) is now a full recipe designer.** Beyond the ingredient list and veg/egg/non-veg + no-onion/garlic, you can now set the **meal, servings, time available, cuisine style, spice level, cooking equipment**, an **output language** (any of the 12 Indian languages), and a free-text "anything special" note (e.g. *give it a twist, make it unique, extra protein*). The AI returns **2–3 distinct dishes**, each with a creative twist, **quantified ingredients, numbered steps, tips and approximate macros** — and respects every preference and dietary constraint.
+- **Less repetition across weeks.** The planner now remembers dishes from your recent weeks and rotates through the catalogue, so meals stay varied over a month instead of repeating every week.
+
+### Google Play Notes
+- The weekly plan now starts on today and shows the date for each day.
+- Many more recipes and smarter variety — far fewer repeats across the month.
+- Cook from ingredients got a big upgrade: tell it the meal, servings, time, cuisine, spice, equipment, language and any special wish, and premium AI returns 2–3 unique dishes with full step-by-step recipes.
+
 ## [1.0.1] - 2026-06-18
 First build submitted to Google Play (internal testing track).
 

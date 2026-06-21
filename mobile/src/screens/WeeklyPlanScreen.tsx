@@ -23,6 +23,23 @@ type Nav = NativeStackNavigationProp<PlanStackParamList, 'WeeklyPlan'>;
 
 const MEAL_ORDER: MealType[] = ['breakfast', 'brunch', 'lunch', 'dinner', 'snack'];
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "2026-06-21" -> "21 Jun". */
+function fmtDate(iso?: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  return `${d} ${MONTHS[m - 1]}`;
+}
+
+/** Local today as YYYY-MM-DD (to flag the first card). */
+function todayIso(): string {
+  const t = new Date();
+  const m = String(t.getMonth() + 1).padStart(2, '0');
+  const d = String(t.getDate()).padStart(2, '0');
+  return `${t.getFullYear()}-${m}-${d}`;
+}
 
 function dayBadges(day: DayPlan): string[] {
   const b: string[] = [];
@@ -43,6 +60,7 @@ export default function WeeklyPlanScreen() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [shufflingId, setShufflingId] = useState<number | null>(null);
+  const today = todayIso();
 
   const load = useCallback(async () => {
     try {
@@ -160,9 +178,17 @@ export default function WeeklyPlanScreen() {
       )}
 
       {plan?.days.map((day) => (
-        <View key={day.day_of_week} style={[styles.dayCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View key={day.date ?? day.day_of_week} style={[styles.dayCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.dayHeader}>
-            <Text style={[styles.dayName, { color: colors.text }]}>{cap(day.weekday)}</Text>
+            <View style={styles.dayHeading}>
+              <Text style={[styles.dayName, { color: colors.text }]}>{cap(day.weekday)}</Text>
+              <Text style={[styles.dayDate, { color: colors.textSecondary }]}>
+                {fmtDate(day.date)}
+                {day.date === today ? (
+                  <Text style={{ color: colors.primary, fontWeight: '800' }}>{'  ·  Today'}</Text>
+                ) : null}
+              </Text>
+            </View>
             <View style={styles.badges}>
               {dayBadges(day).map((b) => (
                 <View key={b} style={[styles.badge, { backgroundColor: colors.badgeBg }]}>
@@ -293,7 +319,9 @@ const styles = StyleSheet.create({
   empty: { textAlign: 'center', marginTop: 40, fontSize: 15, lineHeight: 22, paddingHorizontal: 12 },
   dayCard: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 14 },
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' },
+  dayHeading: { flexShrink: 1 },
   dayName: { fontSize: 18, fontWeight: '800' },
+  dayDate: { fontSize: 12, fontWeight: '600', marginTop: 2 },
   badges: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontSize: 11, fontWeight: '700' },

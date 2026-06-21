@@ -5,8 +5,9 @@ import { Platform } from 'react-native';
 
 import {
   ApiResponse,
+  CookOptions,
   DietaryPreferences,
-  IngredientDish,
+  IngredientSuggestion,
   MealItem,
   MealPlan,
   Recipe,
@@ -148,11 +149,8 @@ class ApiService {
   }
 
   // --- AI (premium) ---
-  async cookFromIngredients(
-    ingredients: string[],
-    opts?: { diet?: string; onion?: number; garlic?: number },
-  ) {
-    const res = await this.api.post<ApiResponse<IngredientDish>>('/ai/from-ingredients', {
+  async cookFromIngredients(ingredients: string[], opts?: CookOptions) {
+    const res = await this.api.post<ApiResponse<IngredientSuggestion>>('/ai/from-ingredients', {
       ingredients,
       ...opts,
     });
