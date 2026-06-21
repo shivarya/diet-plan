@@ -201,6 +201,18 @@ export default function SettingsScreen() {
               trackColor={{ true: colors.primary }}
             />
           </View>
+          <NumberField
+            label="Dal lunches per week (0–7)"
+            value={prefs.dal_per_week}
+            onChange={(v) => {
+              const n = Math.max(0, Math.min(7, parseInt(v.replace(/[^0-9]/g, ''), 10) || 0));
+              setPrefs((p) => (p ? { ...p, dal_per_week: n } : p));
+            }}
+          />
+          <Text style={[styles.hint, { color: colors.textSecondary, marginTop: 2 }]}>
+            That many lunches each week will be a dal/legume dish (dal, sambar, kadhi, rajma, chana…),
+            spread across the week and respecting each day's rules.
+          </Text>
         </View>
 
         {/* Nutrition targets */}

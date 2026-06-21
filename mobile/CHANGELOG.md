@@ -11,6 +11,7 @@ Android `build.gradle`. Add an entry here for every feature/fix before bumping.
 ### Added
 - **Bigger recipe catalogue (≈145 → ≈187 dishes).** Filled out the everyday vegetarian mains — ~28 breakfasts, ~33 lunches and ~32 dinners — plus more egg mains for egg days and a few extra breads/rice and non-veg dishes, so a full month can run without the same dish coming back.
 - **Weekly plan now shows the date for each day** and **starts on the current day** — today is the first card (tagged "Today"), then the next six days, each with its calendar date.
+- **Dal lunches per week** (new Settings control, default 3). Choose how many lunches each week should be a dal/legume dish (dal, sambar, kadhi, rajma, chana…); the planner reserves that many lunches, spreads them across the week, and respects each day's veg/egg + onion/garlic rules.
 
 ### Changed
 - **Cook from ingredients (premium) is now a full recipe designer.** Beyond the ingredient list and veg/egg/non-veg + no-onion/garlic, you can now set the **meal, servings, time available, cuisine style, spice level, cooking equipment**, an **output language** (any of the 12 Indian languages), and a free-text "anything special" note (e.g. *give it a twist, make it unique, extra protein*). The AI returns **2–3 distinct dishes**, each with a creative twist, **quantified ingredients, numbered steps, tips and approximate macros** — and respects every preference and dietary constraint.
@@ -18,6 +19,7 @@ Android `build.gradle`. Add an entry here for every feature/fix before bumping.
 
 ### Google Play Notes
 - The weekly plan now starts on today and shows the date for each day.
+- New "dal lunches per week" setting — pick how often you want dal (default 3).
 - Many more recipes and smarter variety — far fewer repeats across the month.
 - Cook from ingredients got a big upgrade: tell it the meal, servings, time, cuisine, spice, equipment, language and any special wish, and premium AI returns 2–3 unique dishes with full step-by-step recipes.
 

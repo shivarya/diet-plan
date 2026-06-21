@@ -27,6 +27,9 @@ class PlanEngine
   private const SLOT_ORDER = ['breakfast', 'brunch', 'lunch', 'dinner', 'snack'];
   /** Slots that get a bread/rice side when accompaniments are enabled. */
   private const ACCOMPANIED_SLOTS = ['lunch', 'dinner'];
+  /** Name/ingredient keywords that mark a dish as a dal/legume ("dal on the plate"). */
+  private const DAL_KEYWORDS = ['dal', 'daal', 'dhal', 'sambar', 'kadhi', 'khichdi',
+    'rajma', 'chana', 'chole', 'chickpea', 'lentil', 'masoor', 'moong', 'toor', 'urad'];
 
   public function __construct($db)
   {
@@ -45,6 +48,7 @@ class PlanEngine
         $r[$c] = (int)$r[$c];
       }
       $r['id'] = (int)$r['id'];
+      $r['is_dal'] = self::isDalRecipe($r) ? 1 : 0;
       $this->recipeById[$r['id']] = $r;
 
       // Breads/rice are accompaniments — never picked as a main or kid add-on.
@@ -114,6 +118,22 @@ class PlanEngine
       if ($slot === 'snack')  return $on['snack'];
       return true; // breakfast / lunch / dinner are always on
     }));
+  }
+
+  /** Is this a dal/legume dish? Matched on name + ingredients (no manual tagging). */
+  private static function isDalRecipe(array $r): bool
+  {
+    $ingredients = $r['ingredients'] ?? '';
+    if (is_array($ingredients)) {
+      $ingredients = implode(' ', $ingredients);
+    }
+    $hay = strtolower(($r['name'] ?? '') . ' ' . (string)$ingredients);
+    foreach (self::DAL_KEYWORDS as $k) {
+      if (strpos($hay, $k) !== false) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** The day's diet level: veg | egg | nonveg (back-compat: derive from egg flag). */
@@ -252,6 +272,15 @@ class PlanEngine
     $usedKidIds = [];     // week-level variety for kid add-ons
     $plan = [];           // [dow => ['meals' => [...], 'sides' => [...], 'kid' => recipe|null]]
 
+    // Reserve N lunches for a dal/legume main, spread across the week, so the user
+    // gets dal at lunch a predictable number of times. The other lunches keep dal
+    // off, so the total stays at the chosen target.
+    $dalPerWeek = max(0, min(7, (int)($prefs['dal_per_week'] ?? 3)));
+    $dalDays = [];
+    for ($i = 0; $i < $dalPerWeek; $i++) {
+      $dalDays[intdiv($i * 7, $dalPerWeek)] = true; // e.g. 3 -> Mon/Wed/Fri
+    }
+
     for ($dow = 0; $dow < 7; $dow++) {
       $rules = $dayRules[weekdayKey($dow)];
       $carbRemaining = $carbCeiling;
@@ -262,6 +291,19 @@ class PlanEngine
         if (empty($pool)) {
           continue; // no eligible recipe for this slot/day
         }
+
+        // Steer lunch toward / away from dal to honour the weekly dal target.
+        if ($slot === 'lunch' && $dalPerWeek > 0) {
+          $wantDal = isset($dalDays[$dow]);
+          $steered = array_values(array_filter(
+            $pool,
+            fn($r) => $wantDal ? (int)($r['is_dal'] ?? 0) === 1 : (int)($r['is_dal'] ?? 0) === 0
+          ));
+          if (!empty($steered)) {
+            $pool = $steered; // fall back to the full pool only if steering empties it
+          }
+        }
+
         $pick = $this->selectBest($pool, $usedIds, $carbRemaining);
         if ($pick) {
           $plan[$dow]['meals'][$slot] = $pick;

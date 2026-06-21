@@ -51,6 +51,7 @@ export interface DietaryPreferences {
   include_brunch: number;
   include_evening_snack: number;
   include_accompaniment: number;
+  dal_per_week: number; // how many lunches per week should be a dal/legume dish (0–7)
   day_rules: DayRules;
 }
 

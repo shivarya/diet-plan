@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS dietary_preferences (
   include_brunch         TINYINT(1) NOT NULL DEFAULT 0,
   include_evening_snack  TINYINT(1) NOT NULL DEFAULT 0,
   include_accompaniment  TINYINT(1) NOT NULL DEFAULT 1,
+  -- How many lunches per week should be a dal/legume dish (0-7).
+  dal_per_week           TINYINT UNSIGNED NOT NULL DEFAULT 3,
   -- Per-weekday rules: { "monday": {"diet":"egg","egg":1,"onion":1,"garlic":1}, ... }
   day_rules            JSON NOT NULL,
   created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

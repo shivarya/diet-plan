@@ -95,7 +95,7 @@ function loadOrCreatePreferences($db, int $userId): array
   $row['day_rules'] = normalizeDayRules(json_decode($row['day_rules'] ?? 'null', true));
   // Cast numeric columns for clean JSON output.
   foreach (['daily_calorie_target', 'protein_floor_g', 'carb_ceiling_g', 'calcium_target_mg', 'has_kid', 'kid_age',
-    'include_brunch', 'include_evening_snack', 'include_accompaniment'] as $k) {
+    'include_brunch', 'include_evening_snack', 'include_accompaniment', 'dal_per_week'] as $k) {
     if (isset($row[$k]) && $row[$k] !== null) {
       $row[$k] = (int)$row[$k];
     }
