@@ -1,0 +1,3 @@
+# INDB enrichment working data (workbook + intermediate JSON); only the merged
+# dishes in database/seed/recipes.json are committed. See scripts/indb/README.md.
+database/seed/indb/
