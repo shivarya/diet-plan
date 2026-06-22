@@ -214,6 +214,28 @@ class PlanEngine
   }
 
   /**
+   * Pick a recipe at random from the top-scoring eligible candidates. Used by
+   * shuffle: a strictly-greedy pick oscillates among the 3-4 highest-scored
+   * dishes (and the dish just shuffled away, being high-scored, keeps winning
+   * back), so repeated shuffles feel stuck. Shortlisting the top-K by score and
+   * choosing one at random keeps the weight-loss bias while surfacing real variety.
+   */
+  private function selectRandomTop(array $pool, array $usedIds, int $carbRemaining, array $excludeIds = [], int $k = 12): ?array
+  {
+    $scored = [];
+    foreach ($pool as $r) {
+      if (in_array($r['id'], $excludeIds, true)) continue;
+      $scored[] = ['r' => $r, 's' => $this->scoreRecipe($r, $usedIds, $carbRemaining, false)];
+    }
+    if (empty($scored)) {
+      return null;
+    }
+    usort($scored, fn($a, $b) => $b['s'] <=> $a['s']);
+    $top = array_slice($scored, 0, min($k, count($scored)));
+    return $top[mt_rand(0, count($top) - 1)]['r'];
+  }
+
+  /**
    * Pick a bread/rice side for a meal, honouring the day's rules and week variety.
    * Prefers rice when there is carb room left, otherwise a (lower-carb) roti/bread.
    * Appends the chosen id to $usedIds so the week stays varied.
@@ -421,10 +443,10 @@ class PlanEngine
     );
     $excludeIds = array_map(fn($x) => (int)$x['recipe_id'], $planItems);
 
-    $pick = $this->selectBest($pool, [], (int)$prefs['carb_ceiling_g'], $excludeIds);
+    $pick = $this->selectRandomTop($pool, [], (int)$prefs['carb_ceiling_g'], $excludeIds);
     if (!$pick) {
       // Pool exhausted by exclusions — relax to just excluding the current recipe.
-      $pick = $this->selectBest($pool, [], (int)$prefs['carb_ceiling_g'], [(int)$item['recipe_id']]);
+      $pick = $this->selectRandomTop($pool, [], (int)$prefs['carb_ceiling_g'], [(int)$item['recipe_id']]);
     }
     if (!$pick) {
       throw new Exception('No alternative recipe available for this slot');
