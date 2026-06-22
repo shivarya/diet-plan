@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Privacy Policy for Diet Plan - High-Protein Weekly Meal Planner">
+    <title>Privacy Policy - Diet Plan</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #10b981;
+            --text-dark: #1a202c;
+            --text-light: #2d3748;
+            --text-gray: #718096;
+            --dark-surface: #f7fafc;
+            --dark-card: #e2e8f0;
+            --border: #cbd5e0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px 0;
+            color: var(--text-dark);
+            line-height: 1.6;
+        }
+
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .navbar .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
+        }
+
+        .brand-name {
+            color: var(--text-dark);
+        }
+
+        .nav-menu {
+            display: flex;
+            list-style: none;
+            gap: 30px;
+        }
+
+        .nav-menu a {
+            color: var(--text-gray);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-menu a:hover {
+            color: var(--primary);
+        }
+
+        .policy-content {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px 80px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-top: 40px;
+            margin-bottom: 40px;
+        }
+
+        .policy-content h1 {
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            font-size: 2.5rem;
+        }
+
+        .policy-content h2 {
+            color: var(--text-light);
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+            border-bottom: 2px solid var(--dark-card);
+            padding-bottom: 0.5rem;
+        }
+
+        .policy-content h3 {
+            color: var(--primary);
+            margin-top: 1.5rem;
+            margin-bottom: 0.8rem;
+            font-size: 1.3rem;
+        }
+
+        .policy-content p, .policy-content li {
+            color: var(--text-gray);
+            line-height: 1.8;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+        }
+
+        .policy-content ul, .policy-content ol {
+            margin-left: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .policy-content li {
+            margin-bottom: 0.8rem;
+        }
+
+        .policy-meta {
+            background: var(--dark-surface);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            border-left: 4px solid var(--primary);
+        }
+
+        .policy-meta p {
+            margin: 0.5rem 0;
+            color: var(--text-gray);
+        }
+
+        .policy-meta strong {
+            color: var(--text-dark);
+        }
+
+        .highlight-box {
+            background: var(--dark-surface);
+            border-left: 4px solid var(--primary);
+            padding: 20px;
+            margin: 2rem 0;
+            border-radius: 4px;
+        }
+
+        .highlight-box h3 {
+            margin-top: 0;
+            color: var(--primary);
+        }
+
+        .highlight-box p {
+            color: var(--text-gray);
+            margin-bottom: 0.5rem;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 2rem;
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            transition: opacity 0.3s;
+        }
+
+        .back-link:hover {
+            opacity: 0.8;
+        }
+
+        .highlight-box ul {
+            margin: 1rem 0 1rem 1.5rem;
+        }
+
+        .highlight-box li {
+            margin-bottom: 0.3rem;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .nav-menu {
+                gap: 15px;
+            }
+
+            .policy-content {
+                margin-top: 20px;
+                padding: 25px 15px 60px;
+            }
+
+            .policy-content h1 {
+                font-size: 2rem;
+            }
+
+            .policy-content h2 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <svg class="logo" viewBox="0 0 50 50" width="40" height="40">
+                    <rect x="5" y="5" width="40" height="40" rx="8" fill="#10b981" opacity="0.2"/>
+                    <path d="M 25 12 L 30 20 L 22 20 L 27 28 L 15 18 L 23 18 Z" fill="#10b981"/>
+                    <circle cx="15" cy="35" r="3" fill="#10b981"/>
+                    <circle cx="25" cy="32" r="2.5" fill="#10b981" opacity="0.6"/>
+                    <circle cx="35" cy="36" r="2.5" fill="#10b981" opacity="0.6"/>
+                </svg>
+                <span class="brand-name">Diet Plan</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="policy-content">
+            <a href="https://shivarya.dev" class="back-link">← Back to Home</a>
+
+            <h1>Privacy Policy</h1>
+            
+            <div class="policy-meta">
+                <p><strong>Effective Date:</strong> June 18, 2026</p>
+                <p><strong>Last Updated:</strong> June 18, 2026</p>
+                <p><strong>Developer:</strong> Shivarya</p>
+                <p><strong>Contact:</strong> contact@shivarya.dev</p>
+            </div>
+
+            <div class="highlight-box">
+                <h3>In Plain English</h3>
+                <p>✅ We collect your email (for account management)<br>
+                ✅ We store your meal preferences (dietary rules)<br>
+                ✅ Data is encrypted on our servers<br>
+                ✅ You can delete your account anytime<br>
+                ✅ No ads, no third-party tracking<br>
+                ✅ No selling or sharing your data<br>
+                ✅ Premium features are optional<br>
+                ✅ Completely transparent</p>
+            </div>
+
+            <h2>Introduction</h2>
+            <p>This Privacy Policy describes how Diet Plan ("we", "our", "the app") collects, uses, stores, and protects your information when you use our mobile application and web services.</p>
+            <p>Diet Plan is a high-protein, low-carb weekly meal planner designed for personalized nutrition guidance.</p>
+
+            <h2>Information We Collect</h2>
+            
+            <h3>1. Account Information</h3>
+            <p>When you sign in using Google Sign-In, we collect and store:</p>
+            <ul>
+                <li><strong>Email address</strong> — for account authentication and identification</li>
+                <li><strong>Google ID token</strong> — securely verified and not stored permanently</li>
+                <li><strong>Account creation date</strong> — for user analytics</li>
+            </ul>
+
+            <h3>2. Dietary Preferences & Rules</h3>
+            <p>To provide personalized meal planning, we collect and store your dietary choices:</p>
+            <ul>
+                <li><strong>Diet type:</strong> Vegetarian, egg-inclusive, or non-vegetarian</li>
+                <li><strong>Daily restrictions:</strong> Onion/garlic avoidance (e.g., no onion/garlic on Thursdays)</li>
+                <li><strong>Optional meal inclusions:</strong> Brunch, evening snack preferences</li>
+                <li><strong>Kid add-on:</strong> Whether there's a child at home requiring kid-friendly dishes</li>
+                <li><strong>Accompaniment preferences:</strong> Bread/rice side-dish inclusion</li>
+                <li><strong>Nutritional targets:</strong> Protein, calcium, and calorie goals</li>
+            </ul>
+
+            <h3>3. Premium Account Data</h3>
+            <p>If you use premium features (AI-generated meal plans, "Cook from Ingredients"), we track:</p>
+            <ul>
+                <li><strong>Premium status:</strong> Whether your account has access to paid features</li>
+                <li><strong>Billing information:</strong> Payment method and transaction history (processed by Google Play)</li>
+            </ul>
+
+            <h3>4. Generated Meal Plans</h3>
+            <p>We store your generated meal plans, including:</p>
+            <ul>
+                <li>Weekly meal schedules</li>
+                <li>Recipe selections and shuffles</li>
+                <li>Timestamps of plan generation</li>
+                <li>Plan history (current + past week's plans)</li>
+            </ul>
+
+            <h3>5. AI Feature Interactions</h3>
+            <p>For premium AI features, we process:</p>
+            <ul>
+                <li><strong>AI plan requests:</strong> Dietary rules sent to generate personalized plans</li>
+                <li><strong>Ingredient queries:</strong> Ingredients you input for "Cook from Ingredients" feature</li>
+                <li><strong>AI interactions:</strong> Logged for quality improvement (anonymized)</li>
+            </ul>
+
+            <h3>6. Device & App Metrics</h3>
+            <p>We collect non-personal technical data:</p>
+            <ul>
+                <li>App version and build number</li>
+                <li>Device type and OS version</li>
+                <li>App crash reports and error logs</li>
+                <li>Feature usage statistics</li>
+            </ul>
+
+            <h2>How We Use Your Information</h2>
+
+            <h3>Primary Uses</h3>
+            <ol>
+                <li><strong>Personalized Meal Planning:</strong> Your dietary rules generate customized weekly meal schedules</li>
+                <li><strong>Account Management:</strong> Email verification, password recovery, account security</li>
+                <li><strong>Premium Features:</strong> AI meal generation, ingredient-based recipe recommendations</li>
+                <li><strong>App Improvement:</strong> Usage analytics to fix bugs and add features</li>
+                <li><strong>Customer Support:</strong> Contact information for assistance requests</li>
+            </ol>
+
+            <h3>What We DON'T Do</h3>
+            <ul>
+                <li>❌ We do NOT sell your dietary or health data</li>
+                <li>❌ We do NOT share meal plans with third parties</li>
+                <li>❌ We do NOT use your data for advertising or marketing (except our own promotional emails)</li>
+                <li>❌ We do NOT track you across other apps or websites</li>
+                <li>❌ We do NOT profile you for discrimination</li>
+            </ul>
+
+            <h2>Data Storage & Security</h2>
+
+            <h3>Server Infrastructure</h3>
+            <ul>
+                <li><strong>Hosting:</strong> cPanel shared hosting at <code>shivarya.dev</code></li>
+                <li><strong>Database:</strong> MySQL 8.0+ with encrypted connections</li>
+                <li><strong>Backups:</strong> Regular automated backups for disaster recovery</li>
+            </ul>
+
+            <h3>Data Protection</h3>
+            <ul>
+                <li><strong>Transport Security:</strong> All data transmitted via HTTPS (TLS encryption)</li>
+                <li><strong>Storage:</strong> Passwords hashed using bcrypt; sensitive fields encrypted at rest</li>
+                <li><strong>Access Control:</strong> Role-based access; admin accounts require strong authentication</li>
+                <li><strong>Session Management:</strong> JWT tokens (JSON Web Tokens) for secure API authentication</li>
+            </ul>
+
+            <h3>Data Retention</h3>
+            <ul>
+                <li>Your account and meal plans are retained as long as your account is active</li>
+                <li>Upon account deletion, all personal data is removed within 30 days</li>
+                <li>Backup copies may take up to 90 days to be purged</li>
+                <li>We retain anonymized usage logs for up to 1 year for analytics</li>
+            </ul>
+
+            <h2>Data Sharing & Third Parties</h2>
+
+            <h3>AI Provider (Groq)</h3>
+            <p>For premium AI meal planning:</p>
+            <ul>
+                <li>Your <strong>dietary rules only</strong> are sent to Groq API for AI processing</li>
+                <li>We do NOT send your email or personal identifiers</li>
+                <li>Groq processes queries under their own privacy policy: <a href="https://groq.com/privacy/" target="_blank">https://groq.com/privacy/</a></li>
+                <li>Requests are minimally logged for debugging; Groq does not train on your data</li>
+            </ul>
+
+            <h3>Google Sign-In</h3>
+            <p>We verify your identity through Google's OAuth 2.0 service:</p>
+            <ul>
+                <li>Google provides us an ID token; we verify and discard it</li>
+                <li>Your Google account data stays with Google; we only store the email you authorize</li>
+                <li>See Google's privacy policy: <a href="https://policies.google.com/privacy" target="_blank">https://policies.google.com/privacy</a></li>
+            </ul>
+
+            <h3>No Other Third Parties</h3>
+            <p>We do NOT share your data with:</p>
+            <ul>
+                <li>❌ Advertising networks</li>
+                <li>❌ Social media platforms</li>
+                <li>❌ Health or fitness apps</li>
+                <li>❌ Data brokers</li>
+                <li>❌ Any other commercial entities</li>
+            </ul>
+
+            <h2>Your Rights & Control</h2>
+
+            <h3>Access Your Data</h3>
+            <ul>
+                <li>View your meal plans, preferences, and account details in the app</li>
+                <li>Request a data export in JSON format by emailing us</li>
+            </ul>
+
+            <h3>Modify Your Data</h3>
+            <ul>
+                <li>Edit your dietary rules and preferences anytime via Settings</li>
+                <li>Update or change your meal plan generation parameters</li>
+                <li>Change or re-authorize your email via account settings</li>
+            </ul>
+
+            <h3>Delete Your Data</h3>
+            <ul>
+                <li>Delete individual meal plans</li>
+                <li>Delete your entire account (Settings → Account → Delete Account)</li>
+                <li>Account deletion is permanent; all data is removed within 30 days</li>
+            </ul>
+
+            <h2>Permissions</h2>
+
+            <h3>Required Permissions (Android)</h3>
+            <ul>
+                <li><strong>INTERNET</strong> — API communication with our servers</li>
+                <li><strong>ACCESS_NETWORK_STATE</strong> — Check connectivity before syncing</li>
+            </ul>
+
+            <h3>Optional Permissions</h3>
+            <ul>
+                <li><strong>CAMERA</strong> — Photo upload or scanning (if implemented for custom recipes)</li>
+                <li><strong>READ_EXTERNAL_STORAGE</strong> — Export meal plans to device storage</li>
+            </ul>
+            <p>All permissions are requested transparently. You can revoke them anytime via Android Settings.</p>
+
+            <h2>Children's Privacy</h2>
+            <p>This app is not intended for children under 13 years of age. We do not knowingly collect personal information from children. Dietary management by parents on behalf of a child is at the parent's discretion and responsibility. If you believe we have collected data from a child, please contact us immediately.</p>
+
+            <h2>International Users</h2>
+
+            <h3>GDPR Compliance (EU Users)</h3>
+            <ul>
+                <li>You have the right to access, rectify, and delete your data</li>
+                <li>Data processing is based on your consent (via account creation and settings)</li>
+                <li>Data transfers to US-based services (Groq) follow standard contractual clauses</li>
+                <li>You can withdraw consent anytime by deleting your account</li>
+            </ul>
+
+            <h3>CCPA Compliance (California Users)</h3>
+            <ul>
+                <li>You have the right to know, delete, and opt-out of data sales</li>
+                <li>We do NOT sell personal information, so opt-out does not apply</li>
+                <li>Service providers (Groq) are contractually bound not to resell data</li>
+            </ul>
+
+            <h2>Changes to This Privacy Policy</h2>
+            <p>We may update this Privacy Policy to reflect changes in our practices, technology, or legal requirements. We will:</p>
+            <ul>
+                <li>Update the "Last Updated" date above</li>
+                <li>Notify users of material changes via email or in-app notification</li>
+                <li>Require renewed consent for significant privacy changes</li>
+            </ul>
+            <p>Continued use of the app after changes constitutes acceptance of the updated policy.</p>
+
+            <h2>Security Incident Notification</h2>
+            <p>In the event of a data breach or security incident:</p>
+            <ul>
+                <li>We will notify affected users within 72 hours of discovery</li>
+                <li>We will report to relevant data protection authorities as required by law</li>
+                <li>We will provide guidance on protective measures</li>
+            </ul>
+
+            <h2>No Monetization via Data</h2>
+            <p>This app:</p>
+            <ul>
+                <li>❌ Contains NO ads or ad networks</li>
+                <li>❌ Does NOT sell user data</li>
+                <li>❌ Does NOT share data for behavioral profiling</li>
+                <li>✅ Monetizes via premium subscription (in-app purchase) only</li>
+            </ul>
+
+            <h2>Contact Us</h2>
+            <p>Questions or concerns about this Privacy Policy? We're here to help:</p>
+            <ul>
+                <li><strong>Email:</strong> <a href="mailto:contact@shivarya.dev">contact@shivarya.dev</a></li>
+                <li><strong>Website:</strong> <a href="https://shivarya.dev" target="_blank">https://shivarya.dev</a></li>
+                <li><strong>Mailing Address:</strong> Please email for contact details</li>
+            </ul>
+
+            <h2>Legal Compliance</h2>
+            <p>This app and its privacy practices comply with:</p>
+            <ul>
+                <li>✅ GDPR (General Data Protection Regulation) — EU</li>
+                <li>✅ CCPA (California Consumer Privacy Act) — USA</li>
+                <li>✅ India Privacy Code & Grievances Redressal (Indian Telecom)</li>
+                <li>✅ Google Play Store Privacy & Security Policies</li>
+                <li>✅ Apple App Store Privacy Practices (iOS when released)</li>
+            </ul>
+
+            <hr style="margin: 3rem 0; border: none; border-top: 1px solid var(--dark-card);">
+
+            <p style="font-size: 0.9rem; text-align: center; color: var(--text-gray); margin-top: 2rem;">
+                <strong>Privacy at Diet Plan:</strong> Your dietary preferences and health choices are personal. We protect them with care and transparency.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
