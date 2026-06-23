@@ -10,9 +10,9 @@ Deploy the Diet Plan **PHP** API (`server/`) to cPanel at `https://shivarya.dev/
 ## Steps
 
 1. **Pre-flight (local)**: `cd "c:\Users\Ash\Documents\Projects\apps\diet-plan\server" ; composer install` and smoke-test with `php -S localhost:8000` → `curl http://localhost:8000/health`.
-2. **Upload** the `server/` contents to `~/public_html/shivarya.dev/diet_plan` (scp a tarball excluding `.env`/`vendor`/`php_errors.log`, extract on host, then `composer install --no-dev --optimize-autoloader` on the host). Keep `.htaccess` — it uses `RewriteBase /diet_plan/` and routes to the absolute `/diet_plan/index.php` so the parent SPA catch-all does not shadow it; it also protects `.env`.
+2. **Upload** the `server/` contents to `~/public_html/shivarya.dev/diet_plan` (scp a tarball excluding `.env`/`vendor`/`php_errors.log`, extract on host, then `composer install --no-dev --optimize-autoloader` on the host). The `--exclude=./database/seed/indb` keeps the multi-MB INDB workbook + intermediate JSON (git-ignored enrichment working data) out of the upload — only `database/seed/recipes.json` is needed on the host. Keep `.htaccess` — it uses `RewriteBase /diet_plan/` and routes to the absolute `/diet_plan/index.php` so the parent SPA catch-all does not shadow it; it also protects `.env`.
    ```powershell
-   tar -czf "$env:TEMP\dp.tgz" -C server --exclude=./vendor --exclude=./.env --exclude=./php_errors.log .
+   tar -czf "$env:TEMP\dp.tgz" -C server --exclude=./vendor --exclude=./.env --exclude=./php_errors.log --exclude=./database/seed/indb .
    scp -i C:\Users\Ash\.ssh\cpanel_key "$env:TEMP\dp.tgz" hm5pno1wummg@184.168.101.66:~/dp.tgz
    ssh -i C:\Users\Ash\.ssh\cpanel_key hm5pno1wummg@184.168.101.66 "mkdir -p ~/public_html/shivarya.dev/diet_plan && tar xzf ~/dp.tgz -C ~/public_html/shivarya.dev/diet_plan && rm ~/dp.tgz && cd ~/public_html/shivarya.dev/diet_plan && composer install --no-dev --optimize-autoloader"
    ```
@@ -27,7 +27,7 @@ Deploy the Diet Plan **PHP** API (`server/`) to cPanel at `https://shivarya.dev/
    - Env-only changes (e.g. adding an email to `PREMIUM_EMAILS`/`ADMIN_EMAILS`) take effect on the user's next launch — **no redeploy needed**.
 4. **Database**:
    - **Fresh DB**: create the MySQL DB + user in cPanel, import `server/database/schema.sql`, then **seed**: `php scripts/seed.php`, then **populate dish photos**: `php scripts/backfill-images.php` (resolves a LoremFlickr image per recipe, stored once).
-   - **Existing/live DB (updates)**: do NOT re-import `schema.sql` (it's `CREATE TABLE IF NOT EXISTS` — won't alter existing tables). Apply the numbered `database/migrations/NNN_*.sql` in order (back up first), then re-run `php scripts/seed.php` if `recipes.json` changed. Migrations so far: `001_food_type_slots_sides.sql`, `002_recipe_details.sql`.
+   - **Existing/live DB (updates)**: do NOT re-import `schema.sql` (it's `CREATE TABLE IF NOT EXISTS` — won't alter existing tables). Apply the numbered `database/migrations/NNN_*.sql` in order (back up first), then re-run `php scripts/seed.php` if `recipes.json` changed (then `php scripts/backfill-images.php` to populate photos for any newly added recipes — idempotent, only fills empty `image_url`). Migrations so far: `001_food_type_slots_sides.sql`, `002_recipe_details.sql`, `003_dal_per_week.sql` (adds the `dietary_preferences.dal_per_week` column, default 3).
 5. **Verify**: `Invoke-RestMethod https://shivarya.dev/diet_plan/health` returns `{ "success": true, ... }` (works before the DB exists — `/health` does not touch the DB). `GET /recipes` without a token must return a 401 JSON (proves routing reaches `index.php`, not the SPA). With a valid Bearer token, spot-check `POST /meal-plans/generate?mode=rule` and confirm Thursday has no egg/onion/garlic.
 6. **Mobile**: point `app.json` `extra.apiUrl` at `https://shivarya.dev/diet_plan` and set `extra.googleClientId`; ship via EAS (see `play-store-assets` for icons).
 
