@@ -14,13 +14,19 @@ YouTube's caption endpoint blocks aggressively.
   python scripts/youtube/fetch.py                    # every channel in channels.json
   python scripts/youtube/fetch.py --channel @handle   # just one channel
   python scripts/youtube/fetch.py --limit 20          # cap videos per channel (smoke test)
+  python scripts/youtube/fetch.py --refresh-stats     # backfill view_count on already-fetched raw files
 
 Output: server/database/seed/youtube/raw/<handle>/<video_id>.json
         { video_id, url, channel, channel_handle, title, description,
-          transcript, duration_s, published_at }
+          transcript, duration_s, published_at, view_count }
 Resumable: existing raw files are skipped unless --force.
+
+view_count is used by merge.py (Stage C) to pick a winner when the same dish
+shows up from more than one channel/video -- highest view count wins, the
+rest are dropped as duplicates rather than all being kept.
 """
 import argparse
+import glob
 import json
 import os
 import re
@@ -70,11 +76,11 @@ def list_video_ids(youtube, playlist_id, limit=None):
 
 
 def video_details(youtube, video_ids):
-    """videos().list in batches of 50 -> {id: {title, description, duration_s, published_at}}."""
+    """videos().list in batches of 50 -> {id: {title, description, duration_s, published_at, view_count}}."""
     out = {}
     for i in range(0, len(video_ids), 50):
         batch = video_ids[i:i + 50]
-        resp = youtube.videos().list(part="snippet,contentDetails", id=",".join(batch)).execute()
+        resp = youtube.videos().list(part="snippet,contentDetails,statistics", id=",".join(batch)).execute()
         for item in resp.get("items", []):
             snip = item["snippet"]
             out[item["id"]] = {
@@ -82,6 +88,7 @@ def video_details(youtube, video_ids):
                 "description": snip.get("description", ""),
                 "published_at": snip.get("publishedAt"),
                 "duration_s": parse_duration(item["contentDetails"].get("duration")),
+                "view_count": int(item.get("statistics", {}).get("viewCount", 0) or 0),
             }
     return out
 
@@ -109,6 +116,30 @@ def fetch_transcript(video_id):
         return None
 
 
+def refresh_stats(youtube, channels):
+    """Backfill/update view_count on already-fetched raw files -- no transcript
+    re-fetch, no re-listing, just a cheap videos().list(statistics) pass."""
+    for chan in channels:
+        handle = chan["handle"]
+        out_dir = os.path.join(RAW_DIR, handle.lstrip("@"))
+        paths = sorted(glob.glob(os.path.join(out_dir, "*.json")))
+        if not paths:
+            continue
+        print(f"=== {handle} === refreshing stats on {len(paths)} raw videos")
+        records = {os.path.basename(p)[:-5]: json.load(open(p, encoding="utf-8")) for p in paths}
+        details = video_details(youtube, list(records.keys()))
+        updated = 0
+        for vid, rec in records.items():
+            d = details.get(vid)
+            if not d:
+                continue
+            rec["view_count"] = d["view_count"]
+            json.dump(rec, open(os.path.join(out_dir, f"{vid}.json"), "w", encoding="utf-8"),
+                      indent=2, ensure_ascii=False)
+            updated += 1
+        print(f"  updated={updated}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--channels-file", default=CHANNELS_FILE)
@@ -118,6 +149,8 @@ def main():
                      help="skip videos shorter than this many seconds (filters Shorts)")
     ap.add_argument("--sleep", type=float, default=1.0, help="seconds between transcript fetches")
     ap.add_argument("--force", action="store_true", help="refetch videos that already have a raw JSON file")
+    ap.add_argument("--refresh-stats", action="store_true",
+                     help="don't fetch new videos -- just backfill view_count on existing raw files")
     args = ap.parse_args()
 
     api_key = os.environ.get("YOUTUBE_API_KEY")
@@ -131,6 +164,10 @@ def main():
             sys.exit(f"ERROR: {args.channel!r} not found in {args.channels_file}")
 
     youtube = build("youtube", "v3", developerKey=api_key)
+
+    if args.refresh_stats:
+        refresh_stats(youtube, channels)
+        return
 
     for chan in channels:
         handle = chan["handle"]
@@ -174,6 +211,7 @@ def main():
                 "transcript": transcript,
                 "duration_s": d["duration_s"],
                 "published_at": d["published_at"],
+                "view_count": d["view_count"],
             }
             json.dump(record, open(out_path, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
             fetched += 1

@@ -15,6 +15,14 @@ are **kept, not dropped** -- they came from a channel you specifically chose,
 and the planner's existing hard-filter/soft-score already deprioritizes what
 doesn't fit a given day.
 
+**Cross-channel duplicates:** when the same dish (by normalized name) shows
+up from more than one channel/video in a batch, `merge.py` keeps only the one
+from the most-viewed video and drops the rest -- reported as "cross-channel
+duplicates dropped" in its output. This only compares within a single
+`merge.py` run, not against dishes already committed to `recipes.json` from a
+previous run (view counts aren't persisted to the DB, only used transiently
+during merge).
+
 ## Prerequisites
 
 ```
@@ -75,6 +83,10 @@ python scripts/youtube/extract.py               # full run: chunk_NN.json, skips
 # Stage C -- match INDB nutrition where possible, validate, dedup, append.
 python scripts/youtube/merge.py --dry-run       # counts + verified/estimated split only
 python scripts/youtube/merge.py                 # appends accepted dishes to recipes.json
+
+# If you already have raw videos fetched without view_count (older runs),
+# backfill it cheaply (no transcript re-fetch, no re-listing):
+python scripts/youtube/fetch.py --refresh-stats
 
 # Load into the DB:
 php scripts/seed.php

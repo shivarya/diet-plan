@@ -172,6 +172,13 @@ def main():
         if not e.get("is_recipe"):
             dropped.append((vid, e.get("reason", "not a recipe")))
             continue
+
+        # Common extraction mix-up: a dish_category value ('dessert'/'beverage') put in
+        # meal_type instead. These are otherwise-good recipes -- recover them by mapping
+        # to the closest real meal slot rather than rejecting.
+        if e.get("meal_type") in ("dessert", "beverage") and e.get("meal_type") not in MEAL:
+            e["meal_type"] = "snack"
+
         if (e.get("meal_type") not in MEAL or e.get("food_type") not in FOOD
                 or e.get("dish_category") not in CAT or e.get("difficulty") not in DIFF
                 or not e.get("name") or not e.get("ingredients") or not e.get("instructions")):
@@ -200,7 +207,7 @@ def main():
                 "vitamin_score": 2,
             }
 
-        accepted.append({
+        accepted.append((vid, {
             "slug": slug,
             "name": name,
             "cuisine": (e.get("cuisine") or "Indian").strip()[:64],
@@ -227,20 +234,47 @@ def main():
             "image_url": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
             "video_url": video["url"],
             "source_channel": video["channel"],
-        })
+        }))
+
+    # Cross-channel duplicate resolution: the same dish (by normalized name) can come
+    # from more than one channel/video in a batch like this. Keep only the one from the
+    # most-viewed video; drop the rest rather than adding every channel's take on it.
+    by_name = {}
+    for vid, rec in accepted:
+        by_name.setdefault(norm(rec["name"]), []).append((vid, rec))
+
+    final_accepted = []
+    dupes_dropped = []
+    for group in by_name.values():
+        if len(group) == 1:
+            final_accepted.append(group[0][1])
+            continue
+        group.sort(key=lambda vr: raw_by_id.get(vr[0], {}).get("view_count", 0), reverse=True)
+        winner_vid, winner_rec = group[0]
+        final_accepted.append(winner_rec)
+        for vid, rec in group[1:]:
+            dupes_dropped.append((
+                rec["slug"], raw_by_id.get(vid, {}).get("view_count", 0),
+                winner_rec["slug"], raw_by_id.get(winner_vid, {}).get("view_count", 0),
+            ))
 
     print(f"videos={len(enriched)} | accepted={len(accepted)} "
           f"dropped(not-a-recipe)={len(dropped)} rejected={len(rejected)}")
     print(f"  nutrition: verified(INDB match)={verified_count} estimated(AI fallback)={estimated_count}")
+    print(f"  cross-channel duplicates dropped (kept most-viewed): {len(dupes_dropped)} "
+          f"| final={len(final_accepted)}")
     if dropped[:5]:
         print("  sample drops:", "; ".join(f"{v}({r})" for v, r in dropped[:5]))
     if rejected[:5]:
         print("  sample rejects:", "; ".join(f"{v}({r})" for v, r in rejected[:5]))
+    if dupes_dropped[:5]:
+        print("  sample duplicate drops:", "; ".join(
+            f"{s}({v} views) kept {ws}({wv} views)" for s, v, ws, wv in dupes_dropped[:5]))
 
     if args.dry_run:
-        print(f"\n[dry-run] would grow recipes.json {len(existing)} -> {len(existing) + len(accepted)}")
+        print(f"\n[dry-run] would grow recipes.json {len(existing)} -> {len(existing) + len(final_accepted)}")
         return
-    if not accepted:
+    if not final_accepted:
         print("\nNothing to append.")
         return
 
@@ -249,11 +283,11 @@ def main():
     text = open(RECIPES, encoding="utf-8").read()
     cut = text.rstrip().rfind("]")
     head = text[:cut].rstrip()
-    block = ",\n" + ",\n".join("  " + json.dumps(a, ensure_ascii=False) for a in accepted) + "\n"
+    block = ",\n" + ",\n".join("  " + json.dumps(a, ensure_ascii=False) for a in final_accepted) + "\n"
     open(RECIPES, "w", encoding="utf-8").write(head + block + "]\n")
 
-    total = len(existing) + len(accepted)
-    print(f"\nrecipes.json now has {total} dishes (+{len(accepted)}). Run: php scripts/seed.php")
+    total = len(existing) + len(final_accepted)
+    print(f"\nrecipes.json now has {total} dishes (+{len(final_accepted)}). Run: php scripts/seed.php")
 
 
 if __name__ == "__main__":
