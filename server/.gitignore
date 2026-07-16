@@ -1,3 +1,13 @@
 # INDB enrichment working data (workbook + intermediate JSON); only the merged
 # dishes in database/seed/recipes.json are committed. See scripts/indb/README.md.
 database/seed/indb/
+
+# YouTube recipe-import working data (raw videos + enriched chunks); only the
+# merged dishes in database/seed/recipes.json are committed. See scripts/youtube/README.md.
+database/seed/youtube/raw/
+database/seed/youtube/enriched/
+database/seed/youtube/_smoke.json
+
+# Python bytecode cache (indb/, youtube/ scripts)
+__pycache__/
+*.pyc

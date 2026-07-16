@@ -27,27 +27,28 @@ $db = getDB();
 
 $sql = "INSERT INTO recipes
   (slug, name, cuisine, meal_type, food_type, dish_category, servings,
-   calories, protein_g, carbs_g, fat_g, fiber_g, calcium_mg, vitamin_score,
+   calories, protein_g, carbs_g, fat_g, fiber_g, calcium_mg, vitamin_score, nutrition_source,
    contains_egg, contains_onion, contains_garlic,
    is_kid_friendly, is_high_protein, is_low_carb, is_weight_loss,
-   ingredients, instructions, prep_time_min, difficulty, image_url, video_url)
+   ingredients, instructions, prep_time_min, difficulty, image_url, video_url, source_channel)
   VALUES
   (:slug, :name, :cuisine, :meal_type, :food_type, :dish_category, :servings,
-   :calories, :protein_g, :carbs_g, :fat_g, :fiber_g, :calcium_mg, :vitamin_score,
+   :calories, :protein_g, :carbs_g, :fat_g, :fiber_g, :calcium_mg, :vitamin_score, :nutrition_source,
    :contains_egg, :contains_onion, :contains_garlic,
    :is_kid_friendly, :is_high_protein, :is_low_carb, :is_weight_loss,
-   :ingredients, :instructions, :prep_time_min, :difficulty, :image_url, :video_url)
+   :ingredients, :instructions, :prep_time_min, :difficulty, :image_url, :video_url, :source_channel)
   ON DUPLICATE KEY UPDATE
    name=VALUES(name), cuisine=VALUES(cuisine), meal_type=VALUES(meal_type),
    food_type=VALUES(food_type), dish_category=VALUES(dish_category), servings=VALUES(servings),
    calories=VALUES(calories), protein_g=VALUES(protein_g), carbs_g=VALUES(carbs_g), fat_g=VALUES(fat_g),
    fiber_g=VALUES(fiber_g), calcium_mg=VALUES(calcium_mg), vitamin_score=VALUES(vitamin_score),
+   nutrition_source=VALUES(nutrition_source),
    contains_egg=VALUES(contains_egg), contains_onion=VALUES(contains_onion), contains_garlic=VALUES(contains_garlic),
    is_kid_friendly=VALUES(is_kid_friendly), is_high_protein=VALUES(is_high_protein),
    is_low_carb=VALUES(is_low_carb), is_weight_loss=VALUES(is_weight_loss),
    ingredients=VALUES(ingredients), instructions=VALUES(instructions),
    prep_time_min=VALUES(prep_time_min), difficulty=VALUES(difficulty),
-   image_url=VALUES(image_url), video_url=VALUES(video_url)";
+   image_url=VALUES(image_url), video_url=VALUES(video_url), source_channel=VALUES(source_channel)";
 
 $count = 0;
 foreach ($recipes as $r) {
@@ -66,6 +67,7 @@ foreach ($recipes as $r) {
     ':fiber_g' => $r['fiber_g'] ?? 0,
     ':calcium_mg' => $r['calcium_mg'] ?? 0,
     ':vitamin_score' => $r['vitamin_score'] ?? 0,
+    ':nutrition_source' => $r['nutrition_source'] ?? 'verified',
     ':contains_egg' => $r['contains_egg'] ?? 0,
     ':contains_onion' => $r['contains_onion'] ?? 0,
     ':contains_garlic' => $r['contains_garlic'] ?? 0,
@@ -79,6 +81,7 @@ foreach ($recipes as $r) {
     ':difficulty' => $r['difficulty'] ?? 'easy',
     ':image_url' => $r['image_url'] ?? null,
     ':video_url' => $r['video_url'] ?? null,
+    ':source_channel' => $r['source_channel'] ?? null,
   ]);
   $count++;
 }

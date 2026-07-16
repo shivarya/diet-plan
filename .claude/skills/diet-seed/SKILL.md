@@ -36,3 +36,33 @@ To add many dishes at once, use the **Indian Nutrient Databank** enrichment pipe
 3. **`merge.py`** — re-applies the INDB nutrition verbatim, validates/dedups, derives consistent flags, and appends accepted dishes to `recipes.json`. Run `--dry-run` first for counts.
 
 ⚠️ **Subagent self-reported counts are unreliable** — always audit enriched slugs against the candidate set independently before merging. ⚠️ The model sometimes mis-tags composed dishes (sandwiches, stuffed parathas) as `dish_category: bread/rice`, which would hide them in the accompaniment pool — verify INDB `dish_category` is `main`/`snack` for full dishes after merge. The whole `database/seed/indb/` working dir is git-ignored (only the merged dishes in `recipes.json` are committed); then seed + backfill-images as above.
+
+## Growing the catalogue from YouTube (favorite channels)
+
+To add recipes from specific YouTube cooking channels, use the pipeline in
+`server/scripts/youtube/` (full docs: [scripts/youtube/README.md](../../../server/scripts/youtube/README.md)).
+No YouTube login is required — channel/video listing uses the official Data
+API (API key only), and caption transcripts use a login-free but unofficial
+endpoint that must run from your own machine (not a server/cloud host).
+Three stages, all resumable, mirroring the INDB pipeline's shape:
+
+1. **`fetch.py`** (deterministic, no AI) — lists every video on each channel
+   in `channels.json`, pulls full title/description, and best-effort fetches
+   the caption transcript → `database/seed/youtube/raw/<handle>/<video_id>.json`.
+2. **`extract.py`** — Claude Haiku via the Batches API decides whether each
+   video is actually a recipe (vlogs/hauls are gated out, but off-diet dishes
+   like desserts are **kept and tagged honestly**, never dropped), and
+   extracts ingredients/method/flags plus a fallback nutrition estimate.
+   Needs a real `ANTHROPIC_API_KEY` (a Claude Code subscription doesn't
+   provide one) — if you don't have one, use the **`diet-youtube-extract`**
+   skill instead: Claude Code does this stage itself via Haiku subagents, no
+   API key needed, writing the identical `chunk_NN.json` output.
+3. **`merge.py`** — tries to match each dish against the INDB workbook for
+   **verified** nutrition first; only uses the AI's estimate
+   (`nutrition_source: estimated`) when no confident match exists. Dedupes by
+   slug, validates, and appends accepted dishes to `recipes.json`.
+
+`video_url` is set to the real source video and `image_url` defaults to its
+YouTube thumbnail. Then seed as above: `php scripts/seed.php`. Requires
+migration `004_recipe_provenance.sql` (adds `nutrition_source`,
+`source_channel`) to be applied first.
