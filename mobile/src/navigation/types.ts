@@ -5,8 +5,14 @@ export type PlanStackParamList = {
   RecipeDetail: { recipeId: number; title?: string };
 };
 
+export type BrowseStackParamList = {
+  BrowseList: undefined;
+  RecipeDetail: { recipeId: number; title?: string };
+};
+
 export type MainTabParamList = {
   PlanTab: NavigatorScreenParams<PlanStackParamList>;
+  BrowseTab: NavigatorScreenParams<BrowseStackParamList>;
   CookTab: undefined;
   SettingsTab: undefined;
 };

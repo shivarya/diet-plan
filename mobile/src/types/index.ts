@@ -52,6 +52,7 @@ export interface DietaryPreferences {
   include_evening_snack: number;
   include_accompaniment: number;
   dal_per_week: number; // how many lunches per week should be a dal/legume dish (0–7)
+  nutrition_gate_enabled: number; // 0 = show all recipes, ignoring nutrient-based scoring
   day_rules: DayRules;
 }
 
@@ -62,7 +63,7 @@ export interface Recipe {
   cuisine: string;
   meal_type: MealType;
   food_type: DietType;
-  dish_category: 'main' | 'bread' | 'rice' | 'snack' | 'beverage';
+  dish_category: 'main' | 'bread' | 'rice' | 'snack' | 'beverage' | 'dessert';
   servings: number;
   calories: number;
   protein_g: number;
@@ -84,6 +85,8 @@ export interface Recipe {
   difficulty: 'easy' | 'medium' | 'hard';
   image_url: string | null;
   video_url: string | null;
+  source_channel: string | null;
+  nutrition_source: 'verified' | 'estimated';
 }
 
 export type SlotRole = 'main' | 'side';

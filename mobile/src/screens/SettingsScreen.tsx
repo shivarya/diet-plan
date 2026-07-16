@@ -62,7 +62,10 @@ export default function SettingsScreen() {
     );
   };
 
-  const setFlag = (key: 'include_brunch' | 'include_evening_snack' | 'include_accompaniment', value: boolean) => {
+  const setFlag = (
+    key: 'include_brunch' | 'include_evening_snack' | 'include_accompaniment' | 'nutrition_gate_enabled',
+    value: boolean,
+  ) => {
     setPrefs((p) => (p ? { ...p, [key]: value ? 1 : 0 } : p));
   };
 
@@ -218,6 +221,21 @@ export default function SettingsScreen() {
         {/* Nutrition targets */}
         <Text style={[styles.section, { color: colors.text }]}>Daily targets</Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={[styles.label, { color: colors.text }]}>Prioritize healthy recipes</Text>
+              <Text style={[styles.hint, { color: colors.textSecondary, marginTop: 2 }]}>
+                Turn off to see everything the catalogue has — desserts, foreign dishes, off-beat
+                recipes — instead of only protein/calcium/low-carb-optimized picks. Applies to both
+                your weekly plan and dish shuffle.
+              </Text>
+            </View>
+            <Switch
+              value={prefs.nutrition_gate_enabled === 1}
+              onValueChange={(v) => setFlag('nutrition_gate_enabled', v)}
+              trackColor={{ true: colors.primary }}
+            />
+          </View>
           <NumberField label="Calorie target (kcal)" value={prefs.daily_calorie_target} onChange={(v) => setNum('daily_calorie_target', v)} />
           <NumberField label="Protein floor (g)" value={prefs.protein_floor_g} onChange={(v) => setNum('protein_floor_g', v)} />
           <NumberField label="Carb ceiling (g)" value={prefs.carb_ceiling_g} onChange={(v) => setNum('carb_ceiling_g', v)} />

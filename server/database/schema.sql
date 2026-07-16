@@ -32,8 +32,8 @@ CREATE TABLE IF NOT EXISTS recipes (
   meal_type       ENUM('breakfast','brunch','lunch','dinner','snack') NOT NULL,
   -- veg | egg (vegetarian + egg) | nonveg (meat/fish). Source of truth for the diet filter.
   food_type       ENUM('veg','egg','nonveg') NOT NULL DEFAULT 'veg',
-  -- main dish vs accompaniment (bread/rice) vs snack/beverage; bread+rice form the side pool.
-  dish_category   ENUM('main','bread','rice','snack','beverage') NOT NULL DEFAULT 'main',
+  -- main dish vs accompaniment (bread/rice) vs snack/beverage/dessert; bread+rice form the side pool.
+  dish_category   ENUM('main','bread','rice','snack','beverage','dessert') NOT NULL DEFAULT 'main',
   servings        TINYINT UNSIGNED NOT NULL DEFAULT 2,
 
   -- Nutrition (per serving)
@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS recipes (
   fiber_g         SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   calcium_mg      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   vitamin_score   TINYINT UNSIGNED  NOT NULL DEFAULT 0, -- 0..5 coarse micronutrient richness
+  -- verified = curated/INDB-matched nutrition; estimated = AI fallback (e.g. YouTube import
+  -- with no confident nutrition-database match) -- never silently treated as verified.
+  nutrition_source ENUM('verified','estimated') NOT NULL DEFAULT 'verified',
 
   -- Dietary flags
   contains_egg    TINYINT(1) NOT NULL DEFAULT 0,
@@ -60,6 +63,7 @@ CREATE TABLE IF NOT EXISTS recipes (
   difficulty      ENUM('easy','medium','hard') NOT NULL DEFAULT 'easy',
   image_url       VARCHAR(512) NULL,
   video_url       VARCHAR(512) NULL, -- curated YouTube link; app falls back to a search by name
+  source_channel  VARCHAR(120) NULL, -- originating YouTube channel, if imported that way
 
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -94,6 +98,10 @@ CREATE TABLE IF NOT EXISTS dietary_preferences (
   include_accompaniment  TINYINT(1) NOT NULL DEFAULT 1,
   -- How many lunches per week should be a dal/legume dish (0-7).
   dal_per_week           TINYINT UNSIGNED NOT NULL DEFAULT 3,
+  -- When 0, PlanEngine stops applying nutrient-based scoring (protein/calcium/vitamin
+  -- weighting, low-carb/weight-loss/high-protein bonuses, carb-budget penalty) in both
+  -- plan generation and shuffle -- diet/onion/garlic rules and variety are unaffected.
+  nutrition_gate_enabled TINYINT(1) NOT NULL DEFAULT 1,
   -- Per-weekday rules: { "monday": {"diet":"egg","egg":1,"onion":1,"garlic":1}, ... }
   day_rules            JSON NOT NULL,
   created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

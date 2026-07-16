@@ -41,6 +41,7 @@ function updatePreferences()
   $evSnack  = isset($input['include_evening_snack'])  ? (int)!!$input['include_evening_snack'] : $current['include_evening_snack'];
   $accomp   = isset($input['include_accompaniment'])  ? (int)!!$input['include_accompaniment'] : $current['include_accompaniment'];
   $dalWeek  = isset($input['dal_per_week'])            ? max(0, min(7, (int)$input['dal_per_week'])) : $current['dal_per_week'];
+  $gate     = isset($input['nutrition_gate_enabled'])   ? (int)!!$input['nutrition_gate_enabled'] : $current['nutrition_gate_enabled'];
   $dayRules = array_key_exists('day_rules', $input) ? normalizeDayRules($input['day_rules']) : $current['day_rules'];
 
   $db->execute(
@@ -48,10 +49,10 @@ function updatePreferences()
        SET daily_calorie_target = ?, protein_floor_g = ?, carb_ceiling_g = ?,
            calcium_target_mg = ?, has_kid = ?, kid_age = ?,
            include_brunch = ?, include_evening_snack = ?, include_accompaniment = ?,
-           dal_per_week = ?, day_rules = ?
+           dal_per_week = ?, nutrition_gate_enabled = ?, day_rules = ?
      WHERE user_id = ?",
     [$calorie, $protein, $carb, $calcium, $hasKid, $kidAge,
-     $brunch, $evSnack, $accomp, $dalWeek, json_encode($dayRules), $userId]
+     $brunch, $evSnack, $accomp, $dalWeek, $gate, json_encode($dayRules), $userId]
   );
 
   $prefs = loadOrCreatePreferences($db, $userId);

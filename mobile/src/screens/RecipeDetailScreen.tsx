@@ -26,9 +26,14 @@ import RecipeImage from '../components/RecipeImage';
 
 type DetailRoute = RouteProp<PlanStackParamList, 'RecipeDetail'>;
 
-/** A YouTube search for the dish (more reliable than guessing a specific video). */
-function youtubeSearchUrl(name: string): string {
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(name + ' recipe')}`;
+/**
+ * A YouTube search for the dish (more reliable than guessing a specific video).
+ * When the recipe came from a YouTube import, the channel name is folded into
+ * the query so that creator's own video ranks at the top of results.
+ */
+function youtubeSearchUrl(name: string, channel?: string | null): string {
+  const query = channel ? `${channel} ${name} recipe` : `${name} recipe`;
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -163,7 +168,7 @@ export default function RecipeDetailScreen() {
       ...recipe.ingredients.map((i) => `• ${i}`),
     ];
     if (recipe.instructions) lines.push('', 'Method:', recipe.instructions);
-    lines.push('', `▶ Watch: ${youtubeSearchUrl(recipe.name)}`, '', 'Shared from Diet Plan');
+    lines.push('', `▶ Watch: ${youtubeSearchUrl(recipe.name, recipe.source_channel)}`, '', 'Shared from Diet Plan');
     try {
       await Share.share({ message: lines.join('\n'), title: recipe.name });
     } catch {
@@ -172,7 +177,7 @@ export default function RecipeDetailScreen() {
   };
 
   const openVideo = async () => {
-    const url = youtubeSearchUrl(recipe.name);
+    const url = youtubeSearchUrl(recipe.name, recipe.source_channel);
     try {
       await Linking.openURL(url);
     } catch {

@@ -111,9 +111,17 @@ function listRecipes()
   $params = [];
 
   // Filters
-  if (!empty($_GET['meal_type']) && in_array($_GET['meal_type'], ['breakfast', 'lunch', 'dinner', 'snack'], true)) {
+  if (!empty($_GET['meal_type']) && in_array($_GET['meal_type'], ['breakfast', 'brunch', 'lunch', 'dinner', 'snack'], true)) {
     $where[] = 'meal_type = ?';
     $params[] = $_GET['meal_type'];
+  }
+  if (!empty($_GET['dish_category']) && in_array($_GET['dish_category'], ['main', 'bread', 'rice', 'snack', 'beverage', 'dessert'], true)) {
+    $where[] = 'dish_category = ?';
+    $params[] = $_GET['dish_category'];
+  }
+  if (!empty($_GET['food_type']) && in_array($_GET['food_type'], ['veg', 'egg', 'nonveg'], true)) {
+    $where[] = 'food_type = ?';
+    $params[] = $_GET['food_type'];
   }
   foreach (['contains_egg', 'contains_onion', 'contains_garlic', 'is_kid_friendly',
     'is_high_protein', 'is_low_carb', 'is_weight_loss'] as $flag) {

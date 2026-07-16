@@ -23,6 +23,8 @@ class PlanEngine
   private array $recipeById = [];
   /** recipe_id => penalty for appearing in the user's recent plans (cross-week variety). */
   private array $recentPenalty = [];
+  /** When false, scoreRecipe() skips all nutrient-based bonuses/penalties (user opt-out). */
+  private bool $nutritionGateEnabled = true;
   /** Slot render/selection order; which slots are active depends on preferences. */
   private const SLOT_ORDER = ['breakfast', 'brunch', 'lunch', 'dinner', 'snack'];
   /** Slots that get a bread/rice side when accompaniments are enabled. */
@@ -168,14 +170,17 @@ class PlanEngine
 
   private function scoreRecipe(array $r, array $usedIds, int $carbRemaining, bool $allowUsed): float
   {
-    $score = 2.0 * $r['protein_g'] + 0.02 * $r['calcium_mg'] + 4.0 * $r['vitamin_score'];
-    if ($r['is_low_carb'] === 1)     $score += 8;
-    if ($r['is_weight_loss'] === 1)  $score += 6;
-    if ($r['is_high_protein'] === 1) $score += 3;
+    $score = 0.0;
+    if ($this->nutritionGateEnabled) {
+      $score += 2.0 * $r['protein_g'] + 0.02 * $r['calcium_mg'] + 4.0 * $r['vitamin_score'];
+      if ($r['is_low_carb'] === 1)     $score += 8;
+      if ($r['is_weight_loss'] === 1)  $score += 6;
+      if ($r['is_high_protein'] === 1) $score += 3;
 
-    // Penalise overshooting the remaining daily carb budget.
-    if ($carbRemaining >= 0 && $r['carbs_g'] > $carbRemaining) {
-      $score -= 0.6 * ($r['carbs_g'] - $carbRemaining);
+      // Penalise overshooting the remaining daily carb budget.
+      if ($carbRemaining >= 0 && $r['carbs_g'] > $carbRemaining) {
+        $score -= 0.6 * ($r['carbs_g'] - $carbRemaining);
+      }
     }
 
     // Variety: strongly avoid repeats within the week.
@@ -288,6 +293,7 @@ class PlanEngine
     $hasKid = (int)$prefs['has_kid'] === 1;
     $withSides = (int)($prefs['include_accompaniment'] ?? 1) === 1;
     $slots = $this->enabledSlots($prefs);
+    $this->nutritionGateEnabled = (int)($prefs['nutrition_gate_enabled'] ?? 1) === 1;
 
     $usedIds = [];        // week-level variety for adult meals
     $usedSideIds = [];    // week-level variety for accompaniments
@@ -420,6 +426,7 @@ class PlanEngine
 
     $this->loadRecentUsage($userId);
     $prefs = loadOrCreatePreferences($this->db, $userId);
+    $this->nutritionGateEnabled = (int)($prefs['nutrition_gate_enabled'] ?? 1) === 1;
     $rules = $prefs['day_rules'][weekdayKey((int)$item['day_of_week'])];
     $isKid = (int)$item['is_kid_addon'] === 1;
     $isSide = ($item['slot_role'] ?? 'main') === 'side';

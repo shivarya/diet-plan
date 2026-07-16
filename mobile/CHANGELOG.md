@@ -6,6 +6,21 @@ The version + build number live in `release-version.json`; `npm run version:bump
 bumps the patch + versionCode and syncs them into `package.json`, `app.json` and the
 Android `build.gradle`. Add an entry here for every feature/fix before bumping.
 
+## [1.0.3] - 2026-07-16
+
+### Added
+- **"Prioritize healthy recipes" toggle** (Settings → Daily targets). Turn it off to stop the weekly plan and dish shuffle from favoring high-protein/low-carb/weight-loss-tagged dishes — useful now that the catalogue includes a much wider variety of recipes (desserts, foreign dishes, off-beat picks) beyond the health-optimized defaults. Diet rules (veg/egg/non-veg, onion/garlic) are unaffected either way.
+- **New "Browse" tab** — search and filter every recipe in the catalogue directly (by category including a new Dessert filter, and veg/egg/non-veg), independent of the auto-generated weekly plan. Tap any result to open its full recipe detail.
+- **Dessert recipes** now get their own category instead of being lumped in with savory snacks.
+
+### Changed
+- **YouTube-sourced recipes' "Watch" button and share link** now include the source channel name in the search, so that creator's own video ranks at the top of results.
+
+### Google Play Notes
+- New "Prioritize healthy recipes" toggle in Settings — turn it off to see the full recipe catalogue (including desserts and off-beat dishes) in your plan and shuffles, not just the health-optimized picks.
+- New Browse tab: search and filter every recipe in the catalogue, including a new Desserts category.
+- Recipes imported from YouTube now link straight to that creator's channel when you tap Watch.
+
 ## [1.0.2] - 2026-06-21
 
 ### Added

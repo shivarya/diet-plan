@@ -12,6 +12,7 @@ function emojiFor(recipe: ImgRecipe): string {
   if (recipe.dish_category === 'bread') return '🫓';
   if (recipe.dish_category === 'rice') return '🍚';
   if (recipe.dish_category === 'beverage') return '🥤';
+  if (recipe.dish_category === 'dessert') return '🍰';
   if (recipe.food_type === 'nonveg') return '🍗';
   if (recipe.food_type === 'egg') return '🍳';
   if (recipe.dish_category === 'snack') return '🥪';
