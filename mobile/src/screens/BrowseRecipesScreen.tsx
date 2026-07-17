@@ -50,7 +50,10 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
         },
       ]}
     >
-      <Text style={{ color: active ? colors.primary : colors.textSecondary, fontWeight: '600', fontSize: 13 }}>
+      <Text
+        numberOfLines={1}
+        style={{ color: active ? colors.primary : colors.textSecondary, fontWeight: '600', fontSize: 13 }}
+      >
         {label}
       </Text>
     </TouchableOpacity>
@@ -189,7 +192,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   chipRow: { gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
-  chip: { borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  chip: {
+    height: 34,
+    borderWidth: 1.5,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   list: { paddingHorizontal: 20, paddingBottom: 40 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1 },
   thumb: { width: 56, height: 56 },
