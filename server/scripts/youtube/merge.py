@@ -170,9 +170,17 @@ def main():
         m = VIDEO_ID_RE.search(r.get("video_url") or "")
         if m:
             already_merged_video_ids.add(m.group(1))
+    # Cross-channel dedup (below) only ever compared videos accepted *within the
+    # same run* against each other -- it never checked the already-merged catalog.
+    # Since batches run independently over time, the same dish from a different
+    # channel merged in an earlier batch would never be caught, so the same name
+    # kept accumulating one row per batch it happened to appear in. Track existing
+    # names so a new video is only kept if it's actually a new dish, not just a new
+    # channel's take on one already in the catalogue.
+    existing_names = {norm(r["name"]) for r in existing}
     indb_lookup, indb_by_first_word = load_indb_nutrition()
 
-    accepted, dropped, rejected, already_merged = [], [], [], []
+    accepted, dropped, rejected, already_merged, already_covered = [], [], [], [], []
     seen = set()
     verified_count = estimated_count = 0
 
@@ -201,6 +209,9 @@ def main():
             continue
 
         name = e["name"].strip()
+        if norm(name) in existing_names:
+            already_covered.append((vid, name))
+            continue
         base_slug = f"{slugify(name)}-{channel_slug(video['channel_handle'])}"
         slug, n = base_slug, 2
         while slug in existing_slugs or slug in seen:
@@ -274,6 +285,7 @@ def main():
             ))
 
     print(f"videos={len(enriched)} | already_merged={len(already_merged)} "
+          f"already_covered(same dish, different channel already in catalogue)={len(already_covered)} "
           f"accepted={len(accepted)} dropped(not-a-recipe)={len(dropped)} rejected={len(rejected)}")
     print(f"  nutrition: verified(INDB match)={verified_count} estimated(AI fallback)={estimated_count}")
     print(f"  cross-channel duplicates dropped (kept most-viewed): {len(dupes_dropped)} "
