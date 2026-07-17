@@ -41,6 +41,8 @@ RECIPES = os.path.join(SEED_DIR, "recipes.json")
 INDB_XLSX = os.path.join(SEED_DIR, "indb", "Anuvaad_INDB_2024.11.xlsx")
 INDB_XLSX_URL = "https://www.anuvaad.org.in/wp-content/uploads/2020/07/Anuvaad_INDB_2024.11.xlsx"
 
+VIDEO_ID_RE = re.compile(r"[?&]v=([A-Za-z0-9_-]{11})")
+
 MEAL = {"breakfast", "brunch", "lunch", "dinner", "snack"}
 FOOD = {"veg", "egg", "nonveg"}
 CAT = {"main", "bread", "rice", "snack", "beverage", "dessert"}
@@ -158,13 +160,26 @@ def main():
     raw_by_id = load_raw_by_id()
     existing = json.load(open(RECIPES, encoding="utf-8"))
     existing_slugs = {r["slug"] for r in existing}
+    # load_enriched() re-reads every chunk_NN.json ever produced (they're never
+    # deleted), so without this check every run would re-append every
+    # already-merged video under a new slug-collision suffix (e.g. "-2", "-3")
+    # instead of skipping it -- that's exactly what inflated recipes.json with
+    # thousands of duplicate rows before this fix.
+    already_merged_video_ids = set()
+    for r in existing:
+        m = VIDEO_ID_RE.search(r.get("video_url") or "")
+        if m:
+            already_merged_video_ids.add(m.group(1))
     indb_lookup, indb_by_first_word = load_indb_nutrition()
 
-    accepted, dropped, rejected = [], [], []
+    accepted, dropped, rejected, already_merged = [], [], [], []
     seen = set()
     verified_count = estimated_count = 0
 
     for vid, e in enriched.items():
+        if vid in already_merged_video_ids:
+            already_merged.append(vid)
+            continue
         video = raw_by_id.get(vid)
         if not video:
             rejected.append((vid, "no raw video metadata"))
@@ -258,8 +273,8 @@ def main():
                 winner_rec["slug"], raw_by_id.get(winner_vid, {}).get("view_count", 0),
             ))
 
-    print(f"videos={len(enriched)} | accepted={len(accepted)} "
-          f"dropped(not-a-recipe)={len(dropped)} rejected={len(rejected)}")
+    print(f"videos={len(enriched)} | already_merged={len(already_merged)} "
+          f"accepted={len(accepted)} dropped(not-a-recipe)={len(dropped)} rejected={len(rejected)}")
     print(f"  nutrition: verified(INDB match)={verified_count} estimated(AI fallback)={estimated_count}")
     print(f"  cross-channel duplicates dropped (kept most-viewed): {len(dupes_dropped)} "
           f"| final={len(final_accepted)}")
