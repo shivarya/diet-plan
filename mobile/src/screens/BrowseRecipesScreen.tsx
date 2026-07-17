@@ -126,6 +126,7 @@ export default function BrowseRecipesScreen() {
         data={CATEGORY_OPTIONS}
         keyExtractor={(o) => o.value}
         contentContainerStyle={styles.chipRow}
+        style={styles.chipList}
         renderItem={({ item }) => (
           <Chip label={item.label} active={category === item.value} onPress={() => setCategory(item.value)} />
         )}
@@ -136,7 +137,7 @@ export default function BrowseRecipesScreen() {
         data={FOOD_OPTIONS}
         keyExtractor={(o) => o.value}
         contentContainerStyle={styles.chipRow}
-        style={styles.secondChipRow}
+        style={[styles.chipList, styles.secondChipRow]}
         renderItem={({ item }) => (
           <Chip label={item.label} active={foodType === item.value} onPress={() => setFoodType(item.value)} />
         )}
@@ -193,6 +194,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   chipRow: { gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
+  chipList: { height: 54, flexGrow: 0 },
   secondChipRow: { marginTop: 10 },
   chip: {
     height: 34,
