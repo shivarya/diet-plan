@@ -93,13 +93,14 @@ ssh -i "/c/Users/Ash/.ssh/cpanel_key" hm5pno1wummg@184.168.101.66 "cd ~/public_h
 ```
 Verify row counts match without printing credentials — read `.env` into local shell vars over SSH and query without echoing them (see `diet-deploy-api` skill for the exact one-liner; strip `\r` from CRLF-edited `.env` values).
 
-## Current state (as of 2026-07-18, after batch 11)
+## Current state (as of 2026-07-19, after batch 12)
 
-- **Catalogue: 2,223 recipes** (local + production in sync — production has 2,234 rows total, 11 of which are the same pre-existing stale duplicates from batch 10's cleanup, still referenced by real `meal_plan_items` and deliberately left in place). This number is *not* comparable to batches 0–9's "Running total" column below — those were inflated by two separate merge.py duplication bugs (see the two bug notes above); 2,223 is the true unique count.
-- **Fetch limit reached: 700** (per-channel, newest-first; bumped from 500, a bigger +200 jump this batch per the "Open items" suggestion below). No channel exhausted yet — every channel still returned the full `--limit` requested at 700.
-- Chunk numbering is at **chunk_326** (next new manifest starts at chunk_327).
+- **Catalogue: 2,486 recipes** (local + production in sync — production has 2,497 rows total, 11 of which are the same pre-existing stale duplicates from batch 10's cleanup, still referenced by real `meal_plan_items` and deliberately left in place). This number is *not* comparable to batches 0–9's "Running total" column below — those were inflated by two separate merge.py duplication bugs (see the two bug notes above); 2,486 is the true unique count.
+- **Fetch limit reached: 800** (per-channel, newest-first; bumped from 700, a smaller +100 jump this batch — deliberately dialed back from batch 11's +200 given the yield drop that batch saw once it hit sanjeevkapoorkhazana's older catalog). No channel exhausted yet — every channel still returned the full `--limit` requested at 800.
+- Chunk numbering is at **chunk_373** (next new manifest starts at chunk_374).
 - Mobile app: debug build installed and confirmed running on the dev Pixel 10 and on a Windows Android emulator; no mobile *code* changes have shipped alongside these recipe batches (only server-side data).
-- **Batch 11 acceptance rate dropped noticeably** (745 new videos → 610 is_recipe:true extractions → 476 final after dedup, ~64% net yield vs. ~75-85% in recent batches) — driven almost entirely by `sanjeevkapoorkhazana`'s older back-catalog (chunks 317-326), which is heavy on multi-dish compilations, LIVE session recordings, and combo/thali videos that get correctly rejected by the "ONE specific dish" criterion. Individual sanjeevkapoorkhazana chunks ran as low as 1/8 accepted. This is expected given that channel's much larger total upload count (see per-channel table below) — its older content skews toward long-form live/compilation formats more than the other 5 channels.
+- **Batch 12 acceptance rate recovered to ~89% net yield** (371 new videos → 348 is_recipe:true extractions → 263 final after dedup) — much healthier than batch 11's ~64%, because this batch's smaller +100 increment meant only the last ~4 of 47 chunks (370–373) touched sanjeevkapoorkhazana at all, versus batch 11 where 10 of 94 chunks were deep in that channel's compilation-heavy back-catalog. The sanjeevkapoorkhazana chunks in this batch still ran lower (6/8, 6/8, 6/8, 2/3) than the other channels (mostly 6–8/8), confirming that channel's older content is consistently the weak point.
+- **Mid-batch interruption**: hit a session rate limit partway through wave 8 (batch 11) and separately a **weekly** rate limit partway through wave 7 (batch 12, resets were ~11:30pm IST) — both resolved by simply waiting and resuming; no data was lost either time (subagents that show `status: failed` from a rate-limit error had often already completed their `Write` call before the error surfaced, so always check whether the chunk file actually exists before assuming a re-run is needed).
 
 ### Batch history
 
@@ -119,21 +120,22 @@ Verify row counts match without printing credentials — read `.env` into local 
 | 10 | 88af650 | 218 new videos, 172 accepted | 222 (incl. 50 previously-orphaned by the bug) | +210 (12 cross-channel dupes dropped) | 1,892 |
 | — cleanup 2 | 111865c | — | — | −145 (cross-batch cross-channel name dedup) | 1,747 (true unique baseline) |
 | 11 | 2f50264 | 745 new videos, 610 accepted | 490 (277 already-covered by existing catalogue, 481 dropped as not-a-recipe) | +476 (14 cross-channel dupes dropped) | 2,223 |
+| 12 | ce48349 | 371 new videos, 348 accepted | 264 (375 already-covered by existing catalogue, 504 dropped as not-a-recipe) | +263 (1 cross-channel dupe dropped) | 2,486 |
 
-(Batches 0–3 predate the cross-channel dedup feature and per-batch commit-message accuracy; batch 4's commit message is misleadingly generic — "Refactor code structure..." — but its diff confirms +497 recipes, matching the count reconciliation. **Batches 4–9's "Videos processed"/"Accepted" columns were cumulative full-corpus reprocessing counts under the pre-fix `merge.py`, and their "Recipes added" deltas include re-merged duplicates, not just genuinely new content** — don't use them as a model for expected batch-10-onward numbers, which now reflect only truly new videos.)
+(Batches 0–3 predate the cross-channel dedup feature and per-batch commit-message accuracy; batch 4's commit message is misleadingly generic — "Refactor code structure..." — but its diff confirms +497 recipes, matching the count reconciliation. **Batches 4–9's "Videos processed"/"Accepted" columns were cumulative full-corpus reprocessing counts under the pre-fix `merge.py`, and their "Recipes added" deltas include re-merged duplicates, not just genuinely new content** — don't use them as a model for expected batch-10-onward numbers, which now reflect only truly new videos. Batch 11/12's "Accepted" column in merge.py's own terminology counts only videos newly added to the catalogue this run, separate from the "already_covered" bucket — a video whose dish name already exists in the catalogue from a prior batch/channel is neither accepted nor dropped-as-not-a-recipe, it's silently skipped as a duplicate; this is why "Accepted" + "Recipes added" don't need to match exactly.)
 
-### Per-channel totals vs. scraped so far (checked 2026-07-18, after batch 11)
+### Per-channel totals vs. scraped so far (checked 2026-07-19, after batch 12)
 
 | Channel | Long-form scraped | Total channel uploads (incl. Shorts, via API, as of batch 10) |
 |---|---|---|
-| YourFoodLab | 578 | 1,848 |
-| KabitasKitchen | 379 | 2,476 |
-| nishamadhulika | 586 | 2,570 |
-| RanveerBrar | 288 | 1,857 |
-| sanjeevkapoorkhazana | 243 | **17,142** |
-| KunalKapur | 484 | 1,259 |
+| YourFoodLab | 670 | 1,848 |
+| KabitasKitchen | 430 | 2,476 |
+| nishamadhulika | 686 | 2,570 |
+| RanveerBrar | 319 | 1,857 |
+| sanjeevkapoorkhazana | 267 | **17,142** |
+| KunalKapur | 557 | 1,259 |
 
-Caveats: total-uploads column is stale (last checked batch 10) and includes Shorts (which we filter, min 90s duration) — recent-window skip ratios suggest roughly 25–65% of each channel's uploads are Shorts, so true remaining long-form count is lower than the raw delta. **sanjeevkapoorkhazana is a major outlier** (17k+ total uploads vs. 1.2–2.6k for the rest) — at +200/batch this channel alone would still take many more batches to get anywhere near exhausted, and its scraped total (243) is now the lowest of all 6 channels despite the channel having by far the most total uploads.
+Caveats: total-uploads column is stale (last checked batch 10) and includes Shorts (which we filter, min 90s duration) — recent-window skip ratios suggest roughly 25–65% of each channel's uploads are Shorts, so true remaining long-form count is lower than the raw delta. **sanjeevkapoorkhazana is a major outlier** (17k+ total uploads vs. 1.2–2.6k for the rest) — even at a slower fetch cadence this channel alone would still take many more batches to get anywhere near exhausted, and its scraped total (267) remains the lowest of all 6 channels despite the channel having by far the most total uploads.
 
 ## Runbook for a new session
 
@@ -152,9 +154,11 @@ Caveats: total-uploads column is stale (last checked batch 10) and includes Shor
 - **Transient `IpBlocked`/`NoTranscriptFound` caption errors** are normal for a handful of videos per large batch — subagents fall back to title+description, no action needed.
 - **`INSTALL_FAILED_VERSION_DOWNGRADE`** when installing a local debug APK on a device that has a higher-versionCode store build installed — `adb uninstall dev.shivarya.dietplan` then reinstall.
 - A subagent occasionally puts `dessert`/`beverage` into `meal_type` instead of `dish_category` — `merge.py` auto-corrects this, no manual fix needed.
+- **A subagent hitting a rate-limit error (session or weekly) mid-run often still completes its `Write` call before the error surfaces the following turn.** Its `task-notification` will show `status: failed` with a truncated `result`, but the chunk file may already exist and be complete/valid. **Always check whether `enriched/chunk_NN.json` exists (and has 8 valid entries) before assuming a "failed" chunk needs re-extraction** — re-running an already-complete chunk wastes a wave for nothing. Confirmed twice: batch 11 hit a session rate limit mid-wave-8, batch 12 hit a **weekly** rate limit mid-wave-7 (resets ~11:30pm IST) — in both cases every "failed" chunk from that wave had actually written valid output.
+- **A weekly rate limit is a much bigger blocker than a session one** — it doesn't clear in minutes, only at its fixed nightly reset time. When this happens mid-batch, pause and ask the user how they want to handle the wait (idle until reset, leave it for next session, or something else) rather than assuming a short retry loop will work, since auto mode should not silently idle-wait for hours without confirming that's what's wanted.
 
 ## Open items / ideas
 
-- **Batch 11 bumped the increment to +200 (500→700) as suggested below** — worked fine mechanically (94 chunks, 16 extraction waves, one session-rate-limit hiccup mid-wave-8 that resolved itself and resumed cleanly) but yield dropped to ~64% net because it pulled deep into sanjeevkapoorkhazana's older, compilation-heavy back-catalog. Consider the separate-schedule idea below more seriously now that this channel's low-hanging (single-dish, non-compilation) content seems to be thinning out faster than its raw upload count would suggest.
-- Consider a separate, larger `--limit` schedule just for `@sanjeevkapoorkhazana` once the other 5 channels are closer to exhausted, rather than lock-stepping all 6 channels to the same limit — its scraped-so-far count (243) is now the *lowest* of all 6 channels despite having 17k+ total uploads, because so much of what gets fetched there is rejected as non-recipe.
+- **Batch 11 bumped the increment to +200 (500→700)** — worked mechanically (94 chunks, 16 extraction waves) but yield dropped to ~64% net because it pulled deep into sanjeevkapoorkhazana's older, compilation-heavy back-catalog (10 of 94 chunks touched that channel). **Batch 12 dialed back to +100 (700→800)** specifically to limit how deep each batch reaches into that channel — worked as intended: only 4 of 47 chunks touched sanjeevkapoorkhazana this time, and net yield recovered to ~89%. This confirms the increment size is now the main lever for controlling how much of a batch gets "diluted" by that channel — smaller increments front-load the other 5 channels' still-plentiful easy content and defer sanjeevkapoorkhazana's harder content to later batches.
+- Consider a separate, larger `--limit` schedule just for `@sanjeevkapoorkhazana` once the other 5 channels are closer to exhausted, rather than lock-stepping all 6 channels to the same limit — its scraped-so-far count (267) remains the *lowest* of all 6 channels despite having 17k+ total uploads, because so much of what gets fetched there is rejected as non-recipe.
 - No mobile app code changes have been needed for any of these batches — if that changes (e.g. a schema-visible field is added), remember to bump `mobile/release-version.json` and ship a build, per the project's `diet-release` skill.
