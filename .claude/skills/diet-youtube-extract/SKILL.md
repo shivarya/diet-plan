@@ -27,13 +27,17 @@ Haiku subagents (no API billing)".
 
 ## What to do (Claude Code orchestrates this directly)
 
-1. **Read the shared criteria from the single source of truth**: open
-   `server/scripts/youtube/extract.py` and read its `SYSTEM` string and
-   `SCHEMA` dict. Every subagent you spawn must be given this exact
-   system prompt text and this exact required-field list/enums verbatim —
-   don't paraphrase or drift from it, since `merge.py` validates against
-   those same enums (`meal_type`, `food_type`, `dish_category`, `difficulty`)
-   and requires `name`/`ingredients`/`instructions` to be non-empty.
+1. **Use the `youtube-extractor` custom subagent** (`.claude/agents/youtube-extractor.md`),
+   not `general-purpose`. It's scoped to `tools: [Read, Write]` only (this
+   task never needs Bash/Glob/Grep/Edit/WebFetch/etc., and loading those
+   schemas into every one of the ~100+ subagent invocations a large batch
+   needs is pure waste — see "Token discipline" in that agent file) and has
+   the full `SYSTEM`/`SCHEMA` criteria from `server/scripts/youtube/extract.py`
+   baked into its own persistent definition, so you do **not** need to
+   re-paste that ~450-word block into every subagent prompt — that
+   duplication across ~100+ calls a batch was the other half of the token
+   waste this agent fixes. If the extraction criteria ever changes, update
+   both `extract.py` and `youtube-extractor.md` together to keep them in sync.
 
 2. **List the raw videos and figure out what's left to do**:
    - `glob` all `database/seed/youtube/raw/*/*.json` files.
@@ -48,26 +52,18 @@ Haiku subagents (no API billing)".
      comfortably). Number new chunk files continuing from the highest
      existing `chunk_NN` index (zero-padded, e.g. `chunk_07.json`).
 
-3. **Spawn one subagent per chunk** (Agent tool, `subagent_type: general-purpose`,
+3. **Spawn one subagent per chunk** (Agent tool, `subagent_type: youtube-extractor`,
    `model: haiku` — cost-efficient, matches the INDB precedent). Launch
-   several in parallel per message (e.g. 4-6 at a time) rather than one at a
+   several in parallel per message (e.g. 5-6 at a time) rather than one at a
    time; wait for a wave to finish before starting the next if there are
-   many chunks. Each subagent's prompt must be **fully self-contained**
-   (it has no memory of this conversation) and must include:
-   - The exact `SYSTEM` text from `extract.py`, verbatim.
-   - The exact required JSON field list and enum values from `SCHEMA`,
-     verbatim (spell out every field name, type, and allowed enum values —
-     don't just say "see the schema").
-   - The absolute paths of the raw video JSON files in this chunk, with an
-     instruction to `Read` each one (fields: `video_id`, `title`,
-     `description`, `transcript`).
-   - An instruction to produce ONE JSON object keyed by `video_id`, each
-     value matching the schema exactly, and `Write` it to the exact absolute
-     output path `database/seed/youtube/enriched/chunk_NN.json` for this
-     chunk — valid JSON only, no markdown fences, no commentary.
-   - A reminder that `estimated_*` nutrition fields are a fallback only (used
-     if Stage C finds no verified nutrition-database match) and should still
-     be a genuine best-effort estimate, not a placeholder.
+   many chunks. Since the criteria/schema already live in the agent
+   definition, each subagent's prompt only needs to be:
+   - The absolute paths of the raw video JSON files in this chunk (fields:
+     `video_id`, `title`, `description`, `transcript`).
+   - The exact absolute output path `database/seed/youtube/enriched/chunk_NN.json`
+     for this chunk.
+   Do **not** re-paste the `SYSTEM`/`SCHEMA` text per call — that's the
+   duplication `youtube-extractor` exists to eliminate.
 
 4. **Verify each chunk file after its subagent reports done**: read it back,
    confirm it's valid JSON, confirm it has one entry per video in that

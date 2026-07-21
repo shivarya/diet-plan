@@ -34,7 +34,8 @@ Bump `--limit` by **50 each cycle** historically (5→50→100→...→450 so fa
 **A channel is exhausted when a fetch finds fewer videos than `--limit`, or fetches 0 new.** Check the per-channel summary lines (`grep -E "^===|videos found|fetched="` on the output).
 
 ### Stage B — Extract (Claude Code subagents, no API key needed)
-Read `server/scripts/youtube/extract.py`'s `SYSTEM` prompt and `SCHEMA` dict — **that file is the source of truth** for the extraction criteria and required JSON shape (schema below is a snapshot, may drift).
+
+**Use the `youtube-extractor` custom subagent (`.claude/agents/youtube-extractor.md`), not `general-purpose`.** (Added 2026-07-21, batch 14, for token preservation — see "Token discipline" below for why.) It's scoped to `tools: [Read, Write]` only and has the full extraction criteria + schema baked into its own persistent definition, mirroring `server/scripts/youtube/extract.py`'s `SYSTEM`/`SCHEMA` — **that agent file (and `extract.py`) are the source of truth**; if the criteria ever needs to change, update both and keep them in sync.
 
 1. Build a chunk manifest — groups of 8 raw video files not yet present in any `enriched/chunk_*.json`. Run from `server/database/seed/youtube/`:
 
@@ -54,10 +55,15 @@ for i in range(0, len(new_files), 8):
 # write manifest to scratchpad, print chunk count/range
 ```
 
-2. Launch waves of 5 parallel Haiku subagents (`Agent` tool, `subagent_type: general-purpose`, `model: haiku`, `run_in_background: true`), each given 8 raw file paths, the verbatim criteria from `extract.py`, and told to write one JSON object (keyed by video_id) to `enriched/chunk_NN.json`.
-3. Repeat waves until all chunks in the manifest are done. A batch of 150–250 new videos is typically 20–30 chunks = 4–6 waves.
+2. Launch waves of 5–6 parallel Haiku subagents (`Agent` tool, `subagent_type: youtube-extractor`, `model: haiku`, `run_in_background: true`), each given **only** the 8 raw file paths and the output path — **do not re-paste the criteria/schema in the per-call prompt, the agent definition already has it.** A minimal per-call prompt looks like:
+   ```
+   Extract chunk_NN. Input files:
+   <8 absolute paths>
+   Write output to: <absolute path to enriched/chunk_NN.json>
+   ```
+3. Repeat waves until all chunks in the manifest are done. A batch of 150–250 new videos is typically 20–30 chunks = 4–6 waves; a batch of ~1000 is closer to 125 chunks / 21 waves.
 
-Required JSON shape per video (mirror `extract.py::SCHEMA`, verify against the file if in doubt):
+Required JSON shape per video (mirror `extract.py::SCHEMA` / `youtube-extractor.md`'s schema block, verify against those files if in doubt):
 ```
 is_recipe, reason, name, cuisine, meal_type, food_type, dish_category, servings,
 ingredients[], instructions, contains_onion, contains_garlic, contains_egg,
@@ -65,6 +71,8 @@ is_kid_friendly, is_high_protein, is_low_carb, is_weight_loss, difficulty,
 prep_time_min, estimated_calories, estimated_protein_g, estimated_carbs_g,
 estimated_fat_g, estimated_fiber_g, estimated_calcium_mg
 ```
+
+**Token discipline (why `youtube-extractor` exists, added batch 14):** Batches 1–13 used `subagent_type: general-purpose` with the full ~450-word criteria + schema pasted fresh into every single subagent prompt. That's expensive twice over: (a) `general-purpose` has `tools: *`, so every one of the ~100+ subagent invocations a large batch needs pays a fixed token tax just loading schemas for Bash/Glob/Grep/Edit/WebFetch/WebSearch/Agent/Artifact/NotebookEdit/TodoWrite — tools this task never touches; (b) the orchestrating session had to *generate* that ~450-word block as output text on every single call, ~100+ times a batch, purely as duplication. `youtube-extractor` fixes both: `tools: [Read, Write]` only (no unused-tool tax), and the criteria lives once in the agent's own definition instead of being repeated per call (per-call prompts shrink to just the file list + output path). If a rate limit is hit repeatedly within a batch again, this is the first thing to check is actually in effect (`subagent_type: youtube-extractor` in the `Agent` call, not `general-purpose`) before assuming there's nothing more to trim.
 
 ### Stage C — Merge (`server/scripts/youtube/merge.py`)
 ```powershell
