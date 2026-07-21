@@ -93,14 +93,15 @@ ssh -i "/c/Users/Ash/.ssh/cpanel_key" hm5pno1wummg@184.168.101.66 "cd ~/public_h
 ```
 Verify row counts match without printing credentials — read `.env` into local shell vars over SSH and query without echoing them (see `diet-deploy-api` skill for the exact one-liner; strip `\r` from CRLF-edited `.env` values).
 
-## Current state (as of 2026-07-19, after batch 12)
+## Current state (as of 2026-07-21, after batch 13)
 
-- **Catalogue: 2,486 recipes** (local + production in sync — production has 2,497 rows total, 11 of which are the same pre-existing stale duplicates from batch 10's cleanup, still referenced by real `meal_plan_items` and deliberately left in place). This number is *not* comparable to batches 0–9's "Running total" column below — those were inflated by two separate merge.py duplication bugs (see the two bug notes above); 2,486 is the true unique count.
-- **Fetch limit reached: 800** (per-channel, newest-first; bumped from 700, a smaller +100 jump this batch — deliberately dialed back from batch 11's +200 given the yield drop that batch saw once it hit sanjeevkapoorkhazana's older catalog). No channel exhausted yet — every channel still returned the full `--limit` requested at 800.
-- Chunk numbering is at **chunk_373** (next new manifest starts at chunk_374).
-- Mobile app: debug build installed and confirmed running on the dev Pixel 10 and on a Windows Android emulator; no mobile *code* changes have shipped alongside these recipe batches (only server-side data).
-- **Batch 12 acceptance rate recovered to ~89% net yield** (371 new videos → 348 is_recipe:true extractions → 263 final after dedup) — much healthier than batch 11's ~64%, because this batch's smaller +100 increment meant only the last ~4 of 47 chunks (370–373) touched sanjeevkapoorkhazana at all, versus batch 11 where 10 of 94 chunks were deep in that channel's compilation-heavy back-catalog. The sanjeevkapoorkhazana chunks in this batch still ran lower (6/8, 6/8, 6/8, 2/3) than the other channels (mostly 6–8/8), confirming that channel's older content is consistently the weak point.
-- **Mid-batch interruption**: hit a session rate limit partway through wave 8 (batch 11) and separately a **weekly** rate limit partway through wave 7 (batch 12, resets were ~11:30pm IST) — both resolved by simply waiting and resuming; no data was lost either time (subagents that show `status: failed` from a rate-limit error had often already completed their `Write` call before the error surfaced, so always check whether the chunk file actually exists before assuming a re-run is needed).
+- **Catalogue: 3,023 recipes** (local + production in sync — production has 3,034 rows total, 11 of which are the same pre-existing stale duplicates from batch 10's cleanup, still referenced by real `meal_plan_items` and deliberately left in place — the +11 gap is stable and expected, checked again this batch).
+- **Fetch limit reached: 1000** (per-channel, newest-first; bumped from 800, a +200 jump — back to batch 11's increment size since batch 12's dialed-back +100 had recovered yield). Exhaustion status per channel wasn't re-checked against fetch.py's own summary output this session (that happened in the portion of the session before this doc update) — confirm via a fresh `grep -E "^===|videos found|fetched="` on the next fetch's output before assuming any channel still has headroom.
+- Chunk numbering is at **chunk_472** (next new manifest starts at chunk_473).
+- Mobile app: no mobile *code* changes have shipped alongside these recipe batches (only server-side data), consistent with prior batches.
+- **Batch 13 net yield ~68%** (790 new videos → 693 is_recipe:true extractions → 537 final after dedup), roughly in between batch 11's ~64% and batch 12's ~89% — makes sense given the larger +200 increment reached further into channels' back-catalogs again. The batch's final wave (chunk_470–472, all sanjeevkapoorkhazana) was the weakest of the whole batch at 9/22 (~41%) true recipes — that channel's older content continues to be the consistent weak point across every batch that reaches it.
+- **Mid-batch interruptions**: hit a **session** rate limit twice this batch — once mid-wave-6 (chunks 407–409) and again mid-wave-14 (chunks 454–457). Both resolved the same way as prior batches: paused, waited, and on resume confirmed via direct file check that every "failed" chunk had actually written valid output before the error surfaced — no re-extraction needed either time, no data lost.
+- **Also this session**: after a context-compaction/process restart mid-batch, the harness reported 6 chunks (398, 400–403, 406) and later a batch of 20 more (waves 7–11's chunks) as "no completion record found" / orphaned. In every case, direct file + schema verification confirmed all of them had already completed successfully and were valid on disk — these were harness bookkeeping artifacts from the restart, not actual lost work. Worth remembering: **a stale "orphaned/failed" notification after a restart is not itself evidence of lost work — always check the actual `enriched/chunk_NN.json` files before re-running anything.**
 
 ### Batch history
 
@@ -121,21 +122,24 @@ Verify row counts match without printing credentials — read `.env` into local 
 | — cleanup 2 | 111865c | — | — | −145 (cross-batch cross-channel name dedup) | 1,747 (true unique baseline) |
 | 11 | 2f50264 | 745 new videos, 610 accepted | 490 (277 already-covered by existing catalogue, 481 dropped as not-a-recipe) | +476 (14 cross-channel dupes dropped) | 2,223 |
 | 12 | ce48349 | 371 new videos, 348 accepted | 264 (375 already-covered by existing catalogue, 504 dropped as not-a-recipe) | +263 (1 cross-channel dupe dropped) | 2,486 |
+| 13 | 44f59b1 | 790 new videos, 693 accepted | 543 (526 already-covered by existing catalogue, 601 dropped as not-a-recipe) | +537 (6 cross-channel dupes dropped) | 3,023 |
 
 (Batches 0–3 predate the cross-channel dedup feature and per-batch commit-message accuracy; batch 4's commit message is misleadingly generic — "Refactor code structure..." — but its diff confirms +497 recipes, matching the count reconciliation. **Batches 4–9's "Videos processed"/"Accepted" columns were cumulative full-corpus reprocessing counts under the pre-fix `merge.py`, and their "Recipes added" deltas include re-merged duplicates, not just genuinely new content** — don't use them as a model for expected batch-10-onward numbers, which now reflect only truly new videos. Batch 11/12's "Accepted" column in merge.py's own terminology counts only videos newly added to the catalogue this run, separate from the "already_covered" bucket — a video whose dish name already exists in the catalogue from a prior batch/channel is neither accepted nor dropped-as-not-a-recipe, it's silently skipped as a duplicate; this is why "Accepted" + "Recipes added" don't need to match exactly.)
 
-### Per-channel totals vs. scraped so far (checked 2026-07-19, after batch 12)
+### Per-channel totals vs. scraped so far (recounted directly from `raw/` folders, 2026-07-21, after batch 13)
 
-| Channel | Long-form scraped | Total channel uploads (incl. Shorts, via API, as of batch 10) |
+| Channel | Long-form scraped | Total channel uploads (incl. Shorts, via API, as of batch 10 — stale) |
 |---|---|---|
-| YourFoodLab | 670 | 1,848 |
-| KabitasKitchen | 430 | 2,476 |
-| nishamadhulika | 686 | 2,570 |
-| RanveerBrar | 319 | 1,857 |
-| sanjeevkapoorkhazana | 267 | **17,142** |
-| KunalKapur | 557 | 1,259 |
+| YourFoodLab | 867 | 1,848 |
+| KabitasKitchen | 518 | 2,476 |
+| nishamadhulika | 886 | 2,570 |
+| RanveerBrar | 393 | 1,857 |
+| sanjeevkapoorkhazana | 318 | **17,142** |
+| KunalKapur | 737 | 1,259 |
 
-Caveats: total-uploads column is stale (last checked batch 10) and includes Shorts (which we filter, min 90s duration) — recent-window skip ratios suggest roughly 25–65% of each channel's uploads are Shorts, so true remaining long-form count is lower than the raw delta. **sanjeevkapoorkhazana is a major outlier** (17k+ total uploads vs. 1.2–2.6k for the rest) — even at a slower fetch cadence this channel alone would still take many more batches to get anywhere near exhausted, and its scraped total (267) remains the lowest of all 6 channels despite the channel having by far the most total uploads.
+**Note:** the previous version of this table's "Long-form scraped" column had gone stale across batches 11–12 (values weren't refreshed even though the doc claimed otherwise) — the numbers above are a fresh direct count of `raw/<channel>/*.json` files, confirmed to sum to 3,719 matching `merge.py`'s own `videos=3719` corpus-size line. Re-derive this way (not from memory/prior doc text) whenever it's next updated.
+
+Caveats: total-uploads column is stale (last checked batch 10) and includes Shorts (which we filter, min 90s duration) — recent-window skip ratios suggest roughly 25–65% of each channel's uploads are Shorts, so true remaining long-form count is lower than the raw delta. **sanjeevkapoorkhazana is still the major outlier** on total uploads (17k+ vs. 1.2–2.6k for the rest), but its batch-13 acceptance rate (9/22, ~41%, in the final wave) confirms it also remains the weakest-yield channel of the 6 — worth revisiting the "separate slower schedule for this channel" idea below given three batches in a row now show the same pattern.
 
 ## Runbook for a new session
 
@@ -156,6 +160,7 @@ Caveats: total-uploads column is stale (last checked batch 10) and includes Shor
 - A subagent occasionally puts `dessert`/`beverage` into `meal_type` instead of `dish_category` — `merge.py` auto-corrects this, no manual fix needed.
 - **A subagent hitting a rate-limit error (session or weekly) mid-run often still completes its `Write` call before the error surfaces the following turn.** Its `task-notification` will show `status: failed` with a truncated `result`, but the chunk file may already exist and be complete/valid. **Always check whether `enriched/chunk_NN.json` exists (and has 8 valid entries) before assuming a "failed" chunk needs re-extraction** — re-running an already-complete chunk wastes a wave for nothing. Confirmed twice: batch 11 hit a session rate limit mid-wave-8, batch 12 hit a **weekly** rate limit mid-wave-7 (resets ~11:30pm IST) — in both cases every "failed" chunk from that wave had actually written valid output.
 - **A weekly rate limit is a much bigger blocker than a session one** — it doesn't clear in minutes, only at its fixed nightly reset time. When this happens mid-batch, pause and ask the user how they want to handle the wait (idle until reset, leave it for next session, or something else) rather than assuming a short retry loop will work, since auto mode should not silently idle-wait for hours without confirming that's what's wanted.
+- **A context-compaction or process restart mid-batch can make the harness report previously-completed background subagents as "no completion record found" / orphaned / failed**, even though their `enriched/chunk_NN.json` output was written successfully before the restart. Confirmed in batch 13: after one such restart, 26 already-finished chunks across 5 waves got this stale notification. Same rule as the rate-limit case above applies — **check the actual chunk file on disk (existence + entry count + schema) before treating any such notification as real lost work**, especially right after a compaction/restart.
 
 ## Open items / ideas
 
