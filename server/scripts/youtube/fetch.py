@@ -30,8 +30,10 @@ import glob
 import json
 import os
 import re
+import socket
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -40,6 +42,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SEED_DIR = os.path.join(HERE, "..", "..", "database", "seed")
 CHANNELS_FILE = os.path.join(HERE, "channels.json")
 RAW_DIR = os.path.join(SEED_DIR, "youtube", "raw")
+
+# Best-effort global bound on any socket read (Google API client + transcript
+# library). Combined with the explicit per-call timeout in fetch_transcript()
+# below, this stops a single stalled connection from hanging the whole run --
+# observed in practice once IP-blocking on the unofficial transcript endpoint
+# gets heavy after a large batch.
+socket.setdefaulttimeout(45)
+_TRANSCRIPT_POOL = ThreadPoolExecutor(max_workers=4)
 
 DURATION_RE = re.compile(r"P(?:\d+D)?T(?:(?P<h>\d+)H)?(?:(?P<m>\d+)M)?(?:(?P<s>\d+)S)?")
 
@@ -98,11 +108,18 @@ def fetch_transcript(video_id):
         from youtube_transcript_api import YouTubeTranscriptApi
     except ImportError:
         sys.exit("ERROR: pip install youtube-transcript-api")
-    try:
+
+    def _do_fetch():
         try:
-            fetched = YouTubeTranscriptApi().fetch(video_id)          # current (v1.x) instance API
+            return YouTubeTranscriptApi().fetch(video_id)          # current (v1.x) instance API
         except AttributeError:
-            fetched = YouTubeTranscriptApi.get_transcript(video_id)   # older static API
+            return YouTubeTranscriptApi.get_transcript(video_id)   # older static API
+
+    try:
+        # Run through a bounded-timeout pool -- the transcript library has no
+        # timeout of its own, and a stalled connection (common once this IP
+        # gets IpBlocked heavily) would otherwise hang the whole script forever.
+        fetched = _TRANSCRIPT_POOL.submit(_do_fetch).result(timeout=45)
         parts = []
         for snippet in fetched:
             text = getattr(snippet, "text", None)
@@ -111,6 +128,9 @@ def fetch_transcript(video_id):
             if text:
                 parts.append(text)
         return " ".join(parts).strip() or None
+    except FutureTimeoutError:
+        print(f"    transcript unavailable (HungRequestTimeout): {video_id}")
+        return None
     except Exception as e:
         print(f"    transcript unavailable ({type(e).__name__}): {video_id}")
         return None
@@ -172,15 +192,29 @@ def main():
     for chan in channels:
         handle = chan["handle"]
         print(f"\n=== {handle} ===")
-        try:
-            playlist_id, channel_title = uploads_playlist_id(youtube, handle)
-        except HttpError as e:
-            print(f"  ERROR resolving channel: {e}")
+
+        # Transient network blips (socket read timeouts, etc.) are common once
+        # a large batch has been hammering the API/transcript endpoints for a
+        # while -- retry the channel a few times before giving up on it, rather
+        # than crashing the whole multi-channel run over one bad connection.
+        video_ids = details = playlist_id = channel_title = None
+        for attempt in range(3):
+            try:
+                playlist_id, channel_title = uploads_playlist_id(youtube, handle)
+                video_ids = list_video_ids(youtube, playlist_id, args.limit)
+                details = video_details(youtube, video_ids)
+                break
+            except HttpError as e:
+                print(f"  ERROR resolving channel (attempt {attempt + 1}/3): {e}")
+            except Exception as e:
+                print(f"  Network error listing channel (attempt {attempt + 1}/3): {type(e).__name__}: {e}")
+            if attempt < 2:
+                time.sleep(5)
+        if video_ids is None:
+            print(f"  Skipping {handle} after repeated errors.")
             continue
 
-        video_ids = list_video_ids(youtube, playlist_id, args.limit)
         print(f"  {len(video_ids)} videos found")
-        details = video_details(youtube, video_ids)
 
         out_dir = os.path.join(RAW_DIR, handle.lstrip("@"))
         os.makedirs(out_dir, exist_ok=True)
