@@ -130,7 +130,7 @@ class AIClient
      * Run a chat completion. In JSON mode, returns the assistant message content
      * decoded as an associative array, or null on any failure.
      */
-    public function chatCompletion(array $messages, float $temperature = 0.4, bool $jsonMode = true, int $maxRetries = 3): ?array
+    public function chatCompletion(array $messages, float $temperature = 0.4, bool $jsonMode = true, int $maxRetries = 3, int $maxTokens = 4000): ?array
     {
         if (!$this->configured) {
             error_log('AIClient: no AI provider configured');
@@ -144,9 +144,9 @@ class AIClient
 
         // Token-cap parameter name differs across providers.
         if ($this->useMaxCompletionTokens) {
-            $payload['max_completion_tokens'] = 4000;
+            $payload['max_completion_tokens'] = $maxTokens;
         } else {
-            $payload['max_tokens'] = 4000;
+            $payload['max_tokens'] = $maxTokens;
         }
 
         // Azure encodes the model in the URL (deployment); others need it in the body.
@@ -192,11 +192,21 @@ class AIClient
                     return null;
                 }
                 $parsed = json_decode($content, true);
-                return is_array($parsed) ? $parsed : null;
+                if (!is_array($parsed)) {
+                    error_log("AIClient {$this->provider}: response content was not valid JSON (possibly truncated by max_tokens={$maxTokens}): " . substr($content, -200));
+                    return null;
+                }
+                return $parsed;
             }
 
-            // Retry on rate limit / transient server errors.
-            if ($httpCode === 429 || $httpCode >= 500) {
+            // Retry on rate limit / transient server errors, and on Groq's
+            // own JSON-schema validation failures — those are a per-attempt
+            // generation hiccup (more likely the more items/detail we ask for
+            // in one response), not a malformed request, so trying again with
+            // fresh sampling often succeeds.
+            $errorCode = json_decode((string)$response, true)['error']['code'] ?? null;
+            $retryable = $httpCode === 429 || $httpCode >= 500 || $errorCode === 'json_validate_failed';
+            if ($retryable) {
                 $attempt++;
                 if ($attempt >= $maxRetries) {
                     error_log("AIClient {$this->provider} HTTP {$httpCode} after {$maxRetries} attempts: " . substr((string)$response, 0, 300));

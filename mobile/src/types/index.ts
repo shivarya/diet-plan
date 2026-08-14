@@ -145,7 +145,7 @@ export interface IngredientRecipe {
   notes: string;
 }
 
-/** Response of POST /ai/from-ingredients: 2-3 recipes + the constraints applied. */
+/** Response of POST /ai/from-ingredients: 5 recipes + the constraints applied. */
 export interface IngredientSuggestion {
   dishes: IngredientRecipe[];
   applied_constraints?: string;

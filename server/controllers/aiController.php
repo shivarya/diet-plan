@@ -194,7 +194,7 @@ function generateAiPlan(int $userId, string $weekStart): array
 }
 
 /**
- * Premium: "cook from my ingredients" — suggest 2-3 full, beginner-friendly
+ * Premium: "cook from my ingredients" — suggest 5 full, beginner-friendly
  * recipes from the user's available ingredients plus optional preferences
  * (meal type, servings, time, cuisine, spice, equipment, output language and a
  * free-text twist), honouring the chosen diet + onion/garlic rules.
@@ -300,7 +300,7 @@ function aiFromIngredients()
   if ($prefsText !== '') $ask[] = "Extra preferences: {$prefsText}";
 
   $system = "You are an Indian home-cooking assistant for a weight-loss diet app. "
-    . "Suggest 2 to 3 DISTINCT healthy dishes (Indian or popular Indian-twist like pasta/noodles/fried rice) "
+    . "Suggest exactly 5 DISTINCT healthy dishes (Indian or popular Indian-twist like pasta/noodles/fried rice) "
     . "the user can cook mostly from their listed ingredients. Each dish must be high in protein, "
     . "rich in calcium/vitamins and low in carbs. Use mainly the user's available ingredients; "
     . "a few common extra ingredients are fine. "
@@ -320,10 +320,12 @@ function aiFromIngredients()
     . "Dietary constraints: {$constraints}.\n"
     . "Requests:\n- " . implode("\n- ", $ask);
 
+  // 5 full recipes (ingredients + numbered steps + tips each) run well past the
+  // client's 4000-token default and get truncated mid-JSON; give this call more room.
   $out = $ai->chatCompletion([
     ['role' => 'system', 'content' => $system],
     ['role' => 'user', 'content' => $userMsg],
-  ], 0.7, true);
+  ], 0.7, true, maxTokens: 6000);
 
   // Be lenient: accept {dishes:[...]}, a bare list, or a single dish object.
   $dishes = [];
@@ -335,7 +337,7 @@ function aiFromIngredients()
     $dishes = $out;
   }
   $dishes = array_values(array_filter($dishes, fn($d) => is_array($d) && !empty($d['name'])));
-  $dishes = array_slice($dishes, 0, 3);
+  $dishes = array_slice($dishes, 0, 5);
 
   if (!$dishes) {
     Response::error('Could not generate a dish right now. Please try again.', 502);

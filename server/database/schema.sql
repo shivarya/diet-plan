@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS meal_plan_items (
   is_kid_addon  TINYINT(1) NOT NULL DEFAULT 0,
   slot_role     ENUM('main','side') NOT NULL DEFAULT 'main', -- 'side' = bread/rice accompaniment
   servings      TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  shuffle_history JSON NULL, -- recent recipe_ids shown to this slot via shuffle, so repeats don't cycle back in
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_item_plan (meal_plan_id),

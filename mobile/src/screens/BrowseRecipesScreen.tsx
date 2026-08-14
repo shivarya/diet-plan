@@ -50,10 +50,7 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
         },
       ]}
     >
-      <Text
-        numberOfLines={1}
-        style={{ color: active ? colors.primary : colors.textSecondary, fontWeight: '600', fontSize: 13 }}
-      >
+      <Text style={{ color: active ? colors.primary : colors.textSecondary, fontWeight: '600', fontSize: 13 }}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -120,28 +117,16 @@ export default function BrowseRecipesScreen() {
         autoCorrect={false}
       />
 
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={CATEGORY_OPTIONS}
-        keyExtractor={(o) => o.value}
-        contentContainerStyle={styles.chipRow}
-        style={styles.chipList}
-        renderItem={({ item }) => (
-          <Chip label={item.label} active={category === item.value} onPress={() => setCategory(item.value)} />
-        )}
-      />
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={FOOD_OPTIONS}
-        keyExtractor={(o) => o.value}
-        contentContainerStyle={styles.chipRow}
-        style={[styles.chipList, styles.secondChipRow]}
-        renderItem={({ item }) => (
-          <Chip label={item.label} active={foodType === item.value} onPress={() => setFoodType(item.value)} />
-        )}
-      />
+      <View style={styles.chipRow}>
+        {CATEGORY_OPTIONS.map((o) => (
+          <Chip key={o.value} label={o.label} active={category === o.value} onPress={() => setCategory(o.value)} />
+        ))}
+      </View>
+      <View style={[styles.chipRow, styles.secondChipRow]}>
+        {FOOD_OPTIONS.map((o) => (
+          <Chip key={o.value} label={o.label} active={foodType === o.value} onPress={() => setFoodType(o.value)} />
+        ))}
+      </View>
 
       {loading ? (
         <View style={styles.center}>
@@ -193,16 +178,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
   },
-  chipRow: { gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
-  chipList: { height: 54, flexGrow: 0 },
-  secondChipRow: { marginTop: 10 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, paddingTop: 10 },
+  secondChipRow: { marginTop: 2 },
   chip: {
-    height: 34,
     borderWidth: 1.5,
-    borderRadius: 17,
+    borderRadius: 18,
     paddingHorizontal: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingVertical: 7,
   },
   list: { paddingHorizontal: 20, paddingBottom: 40 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1 },

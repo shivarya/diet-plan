@@ -147,12 +147,18 @@ class PlanEngine
     return empty($rules['egg']) ? 'veg' : 'egg';
   }
 
-  /** Does a recipe's food_type fit the day's diet level? veg⊂egg⊂nonveg. */
-  private static function foodTypeAllowed(string $foodType, string $diet): bool
+  /**
+   * Does a recipe's food_type fit the day's diet level? veg⊂egg⊂nonveg.
+   * food_type and contains_egg are judged independently by the YouTube-import
+   * AI extraction and occasionally disagree (a recipe tagged food_type='veg'
+   * that still lists egg among its ingredients) -- check contains_egg too so
+   * that drift can't slip an egg dish past a strict veg day.
+   */
+  private static function foodTypeAllowed(string $foodType, int $containsEgg, string $diet): bool
   {
     if ($diet === 'nonveg') return true;             // anything goes
     if ($foodType === 'nonveg') return false;        // meat/fish needs a nonveg day
-    if ($diet === 'veg' && $foodType === 'egg') return false; // egg needs at least an egg day
+    if ($diet === 'veg' && ($foodType === 'egg' || $containsEgg === 1)) return false; // egg needs at least an egg day
     return true;
   }
 
@@ -161,7 +167,7 @@ class PlanEngine
   {
     $diet = self::dietLevel($rules);
     return array_values(array_filter($pool, function ($r) use ($rules, $diet) {
-      if (!self::foodTypeAllowed($r['food_type'] ?? 'veg', $diet)) return false;
+      if (!self::foodTypeAllowed($r['food_type'] ?? 'veg', (int)($r['contains_egg'] ?? 0), $diet)) return false;
       if (empty($rules['onion']) && $r['contains_onion'] === 1) return false;
       if (empty($rules['garlic']) && $r['contains_garlic'] === 1) return false;
       return true;
@@ -450,20 +456,37 @@ class PlanEngine
     );
     $excludeIds = array_map(fn($x) => (int)$x['recipe_id'], $planItems);
 
-    $pick = $this->selectRandomTop($pool, [], (int)$prefs['carb_ceiling_g'], $excludeIds);
+    // Also exclude the last few recipes THIS slot itself has already shown via
+    // shuffle. Without this, a recipe shuffled away is immediately eligible
+    // again on the very next tap (it's no longer "in the plan" once replaced),
+    // and since the top-scored shortlist barely changes between calls, a few
+    // taps would cycle right back to it.
+    $history = json_decode((string)($item['shuffle_history'] ?? '[]'), true);
+    $history = is_array($history) ? array_map('intval', $history) : [];
+    $excludeWithHistory = array_values(array_unique(array_merge($excludeIds, $history)));
+
+    $pick = $this->selectRandomTop($pool, [], (int)$prefs['carb_ceiling_g'], $excludeWithHistory);
     if (!$pick) {
-      // Pool exhausted by exclusions — relax to just excluding the current recipe.
+      // History made the pool too small — drop it, keep the whole-plan exclusion.
+      $pick = $this->selectRandomTop($pool, [], (int)$prefs['carb_ceiling_g'], $excludeIds);
+    }
+    if (!$pick) {
+      // Still exhausted — relax to just excluding the current recipe.
       $pick = $this->selectRandomTop($pool, [], (int)$prefs['carb_ceiling_g'], [(int)$item['recipe_id']]);
     }
     if (!$pick) {
       throw new Exception('No alternative recipe available for this slot');
     }
 
+    // Remember the recipe being replaced so it stays excluded for the next
+    // few shuffles of this same slot; cap so the list can't grow unbounded.
+    $newHistory = array_slice(array_unique(array_merge([(int)$item['recipe_id']], $history)), 0, 6);
+
     // Kid add-ons keep their own recipe's meal_type; adult slots stay on their slot.
     $newMealType = $isKid ? $pick['meal_type'] : $item['meal_type'];
     $this->db->execute(
-      "UPDATE meal_plan_items SET recipe_id = ?, meal_type = ? WHERE id = ?",
-      [$pick['id'], $newMealType, $itemId]
+      "UPDATE meal_plan_items SET recipe_id = ?, meal_type = ?, shuffle_history = ? WHERE id = ?",
+      [$pick['id'], $newMealType, json_encode($newHistory), $itemId]
     );
 
     return [
@@ -602,7 +625,7 @@ class PlanEngine
   {
     $r = $this->recipeById[$recipeId] ?? null;
     if (!$r) return false;
-    if (!self::foodTypeAllowed($r['food_type'] ?? 'veg', self::dietLevel($rules))) return false;
+    if (!self::foodTypeAllowed($r['food_type'] ?? 'veg', (int)($r['contains_egg'] ?? 0), self::dietLevel($rules))) return false;
     if (empty($rules['onion']) && $r['contains_onion'] === 1) return false;
     if (empty($rules['garlic']) && $r['contains_garlic'] === 1) return false;
     return true;

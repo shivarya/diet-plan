@@ -6,6 +6,29 @@ The version + build number live in `release-version.json`; `npm run version:bump
 bumps the patch + versionCode and syncs them into `package.json`, `app.json` and the
 Android `build.gradle`. Add an entry here for every feature/fix before bumping.
 
+## [1.0.5] - 2026-08-14
+
+### Fixed (server)
+- **Plan tab shuffle no longer cycles back to a recipe it just showed you.** `shuffleItem()` only ever excluded recipes currently sitting elsewhere in the week's plan — the instant a dish was shuffled away it became eligible again immediately, and since the top-scored shortlist barely changes between calls, a handful of taps would loop back to something you'd just seen. Each plan slot now remembers its last few shuffled-away recipes (new `meal_plan_items.shuffle_history` column) and excludes them too.
+- **"Veg" could still surface a recipe containing egg.** A recipe's `food_type` (the diet filter's source of truth) and its `contains_egg` flag are judged independently during recipe import and had drifted apart for 17 recipes in the catalogue — tagged `food_type: veg` despite containing egg. The hard filter now also checks `contains_egg` directly (not just `food_type`), so drift like this can't slip an egg dish past a strict veg day again; the 17 already-mistagged recipes have also been corrected in the database.
+
+### Google Play Notes
+- Fixed: shuffling a dish repeatedly on the Plan tab could loop back to something you'd just seen — you should now see genuinely fresh options each time.
+- Fixed: a small number of recipes miscategorized as vegetarian could appear on a strict veg day; corrected the data and hardened the filter.
+
+## [1.0.4] - 2026-08-14
+
+### Changed
+- **Cook from ingredients now suggests 5 dishes instead of 2–3**, shown as a compact list (name, meta, twist) — tap one to open its full recipe (ingredients, steps, tips). Previously all 2–3 dishes rendered fully expanded on one long page.
+- **Browse tab filter chips** (category and veg/egg/non-veg) no longer clip their labels. Switched from a fixed-height horizontal scroll list to the same content-driven, wrapping chip layout already used on the Cook AI tab — category chips now wrap onto two rows instead of requiring a horizontal scroll.
+
+### Fixed (server)
+- Asking Groq for 5 full recipes in one JSON response occasionally failed the model's own JSON-schema validation (`json_validate_failed`) — a per-attempt generation hiccup, not a bad request — and that specific failure was never retried, so "Could not generate a dish" showed up more often than it should. `AIClient::chatCompletion()` now retries on it (same backoff as rate limits) and takes a `maxTokens` override so the ingredients endpoint can ask for more headroom (6000 vs. the 4000 default) for the larger payload.
+
+### Google Play Notes
+- Cook from ingredients now gives you 5 recipe ideas to pick from — tap one to see the full recipe.
+- Fixed Browse tab filter labels not showing on some devices.
+
 ## [1.0.3] - 2026-07-16
 
 ### Added

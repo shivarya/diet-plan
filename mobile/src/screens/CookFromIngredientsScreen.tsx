@@ -144,14 +144,40 @@ function MultiRow({
   );
 }
 
-function DishCard({ dish, colors }: { dish: IngredientRecipe; colors: ThemeColors }) {
-  const meta = [
+function dishMeta(dish: IngredientRecipe): string {
+  return [
     dish.meal_type ? cap(dish.meal_type) : null,
     dish.serves ? `Serves ${dish.serves}` : null,
     dish.total_time_min ? `${dish.total_time_min} min` : null,
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+function SuggestionCard({ dish, colors, onPress }: { dish: IngredientRecipe; colors: ThemeColors; onPress: () => void }) {
+  const meta = dishMeta(dish);
+  return (
+    <TouchableOpacity
+      style={[styles.suggestion, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={onPress}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.dishName, { color: colors.text }]}>{dish.name}</Text>
+        {meta ? <Text style={[styles.dishSub, { color: colors.textSecondary }]}>{meta}</Text> : null}
+        {dish.approx ? (
+          <Text style={[styles.dishSub, { color: colors.textSecondary }]}>
+            ~{dish.approx.calories} kcal · {dish.approx.protein_g}g protein
+          </Text>
+        ) : null}
+        {dish.twist ? <Text style={[styles.twist, { color: colors.primary }]}>✨ {dish.twist}</Text> : null}
+      </View>
+      <Text style={{ color: colors.textSecondary, fontSize: 20 }}>›</Text>
+    </TouchableOpacity>
+  );
+}
+
+function DishCard({ dish, colors }: { dish: IngredientRecipe; colors: ThemeColors }) {
+  const meta = dishMeta(dish);
 
   return (
     <View style={[styles.result, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -230,6 +256,7 @@ export default function CookFromIngredientsScreen() {
   const [busy, setBusy] = useState(false);
   const [dishes, setDishes] = useState<IngredientRecipe[]>([]);
   const [constraints, setConstraints] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const addItem = () => {
     const v = text.trim();
@@ -249,6 +276,7 @@ export default function CookFromIngredientsScreen() {
     }
     setBusy(true);
     setDishes([]);
+    setSelectedIndex(null);
     try {
       const res = await ApiService.cookFromIngredients(items, {
         diet,
@@ -292,7 +320,7 @@ export default function CookFromIngredientsScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[styles.h1, { color: colors.text }]}>Cook from ingredients</Text>
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          Add what you have, set your preferences, and get 2–3 full recipes that respect them.
+          Add what you have, set your preferences, and get 5 recipe ideas that respect them — tap one for the full recipe.
         </Text>
 
         <View style={styles.inputRow}>
@@ -399,9 +427,25 @@ export default function CookFromIngredientsScreen() {
           <Text style={[styles.dishConstraint, { color: colors.textSecondary }]}>Respects: {constraints}</Text>
         ) : null}
 
-        {dishes.map((dish, i) => (
-          <DishCard key={i} dish={dish} colors={colors} />
-        ))}
+        {dishes.length > 0 && selectedIndex === null && (
+          <>
+            <Text style={[styles.label, { color: colors.textSecondary, marginTop: 20 }]}>
+              5 suggestions — tap one for the full recipe
+            </Text>
+            {dishes.map((dish, i) => (
+              <SuggestionCard key={i} dish={dish} colors={colors} onPress={() => setSelectedIndex(i)} />
+            ))}
+          </>
+        )}
+
+        {selectedIndex !== null && dishes[selectedIndex] && (
+          <>
+            <TouchableOpacity style={styles.backRow} onPress={() => setSelectedIndex(null)}>
+              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>‹ Back to suggestions</Text>
+            </TouchableOpacity>
+            <DishCard dish={dishes[selectedIndex]} colors={colors} />
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -430,6 +474,16 @@ const styles = StyleSheet.create({
   stepValue: { fontSize: 20, fontWeight: '800', minWidth: 28, textAlign: 'center' },
   notesInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, minHeight: 72, textAlignVertical: 'top' },
   suggestBtn: { marginTop: 24, paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
+  suggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+  },
+  backRow: { marginTop: 24, marginBottom: 4 },
   result: { marginTop: 24, borderRadius: 16, borderWidth: 1, padding: 18 },
   dishName: { fontSize: 22, fontWeight: '800' },
   dishSub: { fontSize: 13, marginTop: 4 },
