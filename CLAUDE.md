@@ -1,17 +1,6 @@
 # CLAUDE.md — Diet Plan
 
-Guidance for Claude Code when working inside `diet-plan/`. Launch Claude from this directory so the project's skills (in `.claude/`) load automatically.
-
-## Terminal Command Rules
-
-**CRITICAL**: Always combine directory change and command in a single line, and use absolute Windows paths.
-
-```powershell
-# ✅ Correct
-cd "c:\Users\Ash\Documents\Projects\apps\diet-plan\server" ; php -S localhost:8000
-```
-
----
+Guidance for Claude Code when working inside `diet-plan/`. Launch Claude from this directory so the project's skills (in `.claude/`) load automatically. (Terminal command rules: see the workspace-root `CLAUDE.md`, which loads automatically alongside this one.)
 
 ## What this app does
 
@@ -63,6 +52,8 @@ npm run build:production                            # bump version (release-vers
 
 > **ALWAYS update `mobile/CHANGELOG.md` for every user-facing mobile feature or fix — before bumping the version or kicking a build.** Add it under a new `## [x.y.z] - YYYY-MM-DD` heading with `### Added/Changed/Fixed` sections plus a **Google Play Notes** block (that block is copied verbatim into the Play "What's new" field). Same pattern as `expense-tracker`. Do this as part of the feature's own change, not as an afterthought.
 
+> **After a debug install onto a physical device is done being used for testing, fully uninstall it — don't leave debug builds lingering on the user's real phone.** `adb -s <device> uninstall dev.shivarya.dietplan` normally suffices, but if Work profile / Private Space is enabled the app may have landed in a non-default user profile where a bare uninstall silently no-ops (expect a `SecurityException` on cross-profile queries — that's a standard shell restriction, not a bug). Check `adb -s <device> shell pm list users`, find the profile via `pm list packages --user <id>`, then `pm uninstall --user <id> dev.shivarya.dietplan`.
+
 ---
 
 ## Architecture
@@ -78,7 +69,7 @@ Single entry point parses the URI (strips a `/diet_plan` or `/api` base path) an
 - All routes except `/health` and `/auth/*` require `Authorization: Bearer <jwt>` (`JWTHandler::requireAuth()`). Premium routes gate on `users.is_premium` via `utils/access.php`.
 
 ### PlanEngine (`services/PlanEngine.php`) — the core
-Per day: apply egg/onion/garlic rules as a **hard filter**, then **soft-score** the remaining recipes (protein, calcium, low-carb, vitamins, weight-loss tag; penalties for repeating within the week and exceeding the daily carb budget; small jitter for variety). Fills breakfast/lunch/dinner + one kid add-on (when `has_kid`). `shuffleItem()` re-runs a single slot excluding dishes already in the plan.
+Per day: apply egg/onion/garlic rules as a **hard filter**, then **soft-score** the remaining recipes (protein, calcium, low-carb, vitamins, weight-loss tag; penalties for repeating within the week and exceeding the daily carb budget; small jitter for variety). Fills breakfast/lunch/dinner + one kid add-on (when `has_kid`). `shuffleItem()` re-runs a single slot excluding dishes already elsewhere in the plan *and* (migration `006`) the slot's own `shuffle_history`, so repeated taps don't cycle back to a recently-seen recipe.
 
 ### Data model (`server/database/schema.sql`)
 `users` (+`is_premium`), `recipes` (nutrition + flags: `contains_egg/onion/garlic`, `is_kid_friendly/high_protein/low_carb/weight_loss`, `food_type` veg/egg/nonveg, `dish_category` main/bread/rice/snack/beverage, `image_url`, `video_url`, `ingredients` JSON), `dietary_preferences` (`day_rules` JSON + `include_brunch/include_evening_snack/include_accompaniment`), `meal_plans`, `meal_plan_items` (`is_kid_addon`, `slot_role` main/side). Recipes seeded from `database/seed/recipes.json` (~145 curated dishes incl. non-veg + bread/rice) via `scripts/seed.php` (idempotent upsert by `slug`). Schema changes after the initial deploy ship as `database/migrations/NNN_*.sql` (ALTERs) — apply those to the live DB, don't re-import `schema.sql`.
@@ -113,7 +104,7 @@ apiUrl=https://shivarya.dev/diet_plan   apiUrlDev=http://localhost:8000   google
 
 ## Deployment
 
-- API → cPanel at `https://shivarya.dev/diet_plan/` (live). Deploy under **`~/public_html/shivarya.dev/diet_plan`** — that folder is `shivarya.dev`'s docroot, **not** `~/public_html/` (deploying there gets shadowed by the portfolio SPA). SSH via root `connect_ssh.ps1`; host has PHP 8.4 + Composer 2.9. Flow: scp a source tarball (exclude `.env`/`vendor`), extract, `composer install --no-dev`, write `.env` (600), then **DB is set up separately** (create DB matching `.env` `DB_NAME`/`DB_USER`, import `schema.sql`, run `scripts/seed.php`). The repo `composer.json` sets `audit.block-insecure=false` because `firebase/php-jwt`/`google/apiclient` pin versions flagged by recent advisories. See the `diet-deploy-api` skill for the exact commands.
+- API → cPanel at `https://shivarya.dev/diet_plan/` (live). Deploy under **`~/public_html/shivarya.dev/diet_plan`** — that folder is `shivarya.dev`'s docroot, **not** `~/public_html/` (deploying there gets shadowed by the portfolio SPA). SSH via root `connect_ssh.ps1`; host has PHP 8.4 + Composer 2.9. Flow: scp a source tarball (exclude `.env`/`vendor`), extract, `composer install --no-dev`, write `.env` (600), then **DB is set up separately** (create DB matching `.env` `DB_NAME`/`DB_USER`, import `schema.sql`, run `scripts/seed.php`). See the `diet-deploy-api` skill for the exact commands, migration list, and the `composer.json` audit-flag note.
 - Mobile via Google Play (EAS). Google Sign-In and the `@react-native-google-signin` native module require a dev/prod build (not Expo Go); use the dev login for quick local testing. App icons/branding are generated from `mobile/assets/images/app-icon-modern.svg` + `app-logo.svg` via `npm run generate-icons` (or the root `play-store-assets` skill) → `mobile/play-store-assets/`.
 - Full step-by-step cPanel deploy: [docs/server-deployment.md](docs/server-deployment.md).
 
@@ -123,4 +114,4 @@ Recipes are being bulk-imported from 6 Indian cooking YouTube channels via a fet
 
 ## Known open issues
 
-- **Browse Recipes filter chips still render with visibly clipped/cut bottoms on the dev Windows Android emulator (as of 2026-07-18), not yet resolved.** Screen: `mobile/src/screens/BrowseRecipesScreen.tsx`, the local `Chip` component + `styles.chip`/`chipList`/`chipRow`. Already tried and confirmed insufficient on their own: (1) adding `lineHeight` to the chip `Text` (caused the chips to balloon to ~6x their intended height instead — reverted), (2) switching to a fixed-height (`height: 34`) flex-centered chip instead of content-driven sizing, (3) giving the horizontal `FlatList`s themselves an explicit `style={{ height: 54 }}` in case the ScrollView's own cross-axis sizing was clipping content, (4) correcting `borderRadius` from 20 down to 17 (an over-specified radius greater than half the 34px height is invalid). Every `adb screencap` capture taken during this investigation — at various timings (immediately after reload, after a settle delay, mid-horizontal-scroll to check newly-recycled items) and even a 2x nearest-neighbor-upscaled crop — showed the chips rendering correctly, fully rounded, no clipping. But the user's own screenshots (including one taken via the emulator's own screenshot button, not a host window grab) consistently show clipped bottoms. This split between "device framebuffer capture looks fine" and "what the user actually sees looks broken" was never root-caused before the emulator was shut down for the session. **Next session: get a fresh screenshot first before assuming any of the above fixes changed anything** — the emulator's Android version is a preview build (Android 16 / API 36, `Medium_Phone_API_36.1` AVD, build `BE4B.251210.005`), which may have its own text/border rendering quirks not present on real hardware; worth testing directly on the physical dev Pixel 10 to rule out an emulator-only rendering bug entirely before spending more time on style tweaks.
+None currently tracked — see `mobile/CHANGELOG.md` for recently resolved issues.
