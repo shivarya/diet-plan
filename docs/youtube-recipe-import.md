@@ -82,6 +82,8 @@ python scripts/youtube/merge.py             # writes to database/seed/recipes.js
 ```
 Reports: `accepted`/`dropped(not-a-recipe)`/`cross-channel duplicates dropped`/`final`. Both commands slow down as the catalogue and raw-video corpus grow (fuzzy INDB matching scales with recipe count) — run them with `run_in_background: true` once past a few thousand recipes rather than assuming they'll finish in 60s.
 
+Then audit the merged catalogue before seeding: `python scripts/audit-catalog.py` (exit 1 = something to fix). It flags implausible per-serving nutrition (deep-frying oil counted as eaten, whole-batch totals stored per serving, a batch weight read as `servings`), recipes that list egg while `contains_egg = 0` (they would land on veg days), and kcal that disagrees with the macros. Fix by adding re-estimated values to a `database/seed/nutrition-corrections-*.json` and running `python scripts/apply-nutrition-corrections.py <that file>` (it also fixes the egg flags; idempotent, rewrites only the affected lines).
+
 ### Deploy — local + production
 ```powershell
 # Local
@@ -99,10 +101,13 @@ scp -i "/c/Users/Ash/.ssh/cpanel_key" "/c/Users/Ash/Documents/Projects/apps/diet
 ssh -i "/c/Users/Ash/.ssh/cpanel_key" hm5pno1wummg@184.168.101.66 "cd ~/public_html/shivarya.dev/diet_plan && php scripts/seed.php"
 ssh -i "/c/Users/Ash/.ssh/cpanel_key" hm5pno1wummg@184.168.101.66 "cd ~/public_html/shivarya.dev/diet_plan && php scripts/backfill-images.php"   # only fills empty image_url, safe to always run
 ```
+Back up the prod DB first (see `diet-deploy-api`). Since 2026-10-07 `seed.php` keeps an `image_url` already in the DB (admin-picked and lazily fetched photos used to be wiped by every reseed), so the backfill only covers genuinely new rows. Rows whose values changed get a new `updated_at`, which is what the native app's catalogue delta sync pulls.
+
 Verify row counts match without printing credentials — read `.env` into local shell vars over SSH and query without echoing them (see `diet-deploy-api` skill for the exact one-liner; strip `\r` from CRLF-edited `.env` values).
 
 ## Current state (as of 2026-08-07, batch 16 COMPLETE — extracted, merged, and deployed)
 
+- **Update 2026-10-07 — batch 17 deployed, catalogue 9,266.** Commit `3393d0d` (2026-08-18) had merged a further sanjeevkapoorkhazana batch into `recipes.json` (+2,759 → 9,266) without seeding it anywhere; its fetch/extract numbers weren't recorded. On 2026-10-07 the whole file was audited (`scripts/audit-catalog.py`), 59 recipes got re-estimated nutrition / servings and 17 got their missing egg flag (`database/seed/nutrition-corrections-2026-10.json`), and it was seeded to local + production. The batch-16 notes below are otherwise still accurate (sanjeevkapoorkhazana is the only channel with depth left).
 - **Catalogue: 6,507 recipes** (up from 5,911 after batch 15). Production DB verified at 6,518 rows = 6,507 + the established stable +11 offset (harmless legacy rows, see the batch-9 cleanup note above).
 - **Fetch strategy changed: per-channel targeted fetch instead of one global `--limit` across all 6 channels** (implementing the "Open items" idea flagged in batch 15 — see below). By batch 15's end, 4 of 6 channels were near-exhausted at the shared fetch depth, so this batch fetched only the two channels with remaining runway, each via `fetch.py --channel @handle --limit N`: `@nishamadhulika --limit 3000` (55 new videos — **also now near-exhausted**, 2,557 total found, under the 3,000 cap) and `@sanjeevkapoorkhazana --limit 5000` (732 new videos, **hit the 5,000 cap** — still has more depth beyond this). Combined: **787 new videos**. Stage B workload: **99 chunks** (chunk_1062–1160), all sourced from sanjeevkapoorkhazana except the first few from nishamadhulika.
 - **Stage B extraction: all 99 chunks done, 100%, spanning 13 waves.** 788 videos processed (manifest builder reported 788 vs. the 787 raw-count delta — a 1-file discrepancy never root-caused, immaterial), **744 `is_recipe:true`** (~94% yield). No missing-raw-file incidents this batch (unlike batch 15's chunk_1038 gotcha).
@@ -135,6 +140,7 @@ Verify row counts match without printing credentials — read `.env` into local 
 | 14 | 05a031f | 3,609 new videos, 3,190 is_recipe:true (extraction yield) | 2,416 (1,306 already-covered by existing catalogue, 1,020 dropped as not-a-recipe) | +2,272 (144 cross-channel dupes dropped) | 5,295 |
 | 15 | 1539fa8 | 1,089 new videos, 1,035 is_recipe:true (extraction yield) | 634 (1,851 already-covered by existing catalogue, 1,073 dropped as not-a-recipe) | +616 (18 cross-channel dupes dropped) | 5,911 |
 | 16 | cca7762 | 787 new videos (targeted: nishamadhulika + sanjeevkapoorkhazana only), 744 is_recipe:true (extraction yield) | 608 (2,005 already-covered by existing catalogue, 1,117 dropped as not-a-recipe) | +596 (12 cross-channel dupes dropped) | 6,507 |
+| 17 | 3393d0d | not recorded (sanjeevkapoorkhazana only) | — | +2,759 (seeded 2026-10-07, with the data-quality fixes) | 9,266 |
 
 (Batches 0–3 predate the cross-channel dedup feature and per-batch commit-message accuracy; batch 4's commit message is misleadingly generic — "Refactor code structure..." — but its diff confirms +497 recipes, matching the count reconciliation. **Batches 4–9's "Videos processed"/"Accepted" columns were cumulative full-corpus reprocessing counts under the pre-fix `merge.py`, and their "Recipes added" deltas include re-merged duplicates, not just genuinely new content** — don't use them as a model for expected batch-10-onward numbers, which now reflect only truly new videos. Batch 11/12's "Accepted" column in merge.py's own terminology counts only videos newly added to the catalogue this run, separate from the "already_covered" bucket — a video whose dish name already exists in the catalogue from a prior batch/channel is neither accepted nor dropped-as-not-a-recipe, it's silently skipped as a duplicate; this is why "Accepted" + "Recipes added" don't need to match exactly.)
 

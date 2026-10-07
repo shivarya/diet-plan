@@ -5,7 +5,8 @@
  * Usage: php scripts/seed.php
  *
  * Idempotent: upserts by unique `slug`, so re-running updates existing rows
- * rather than duplicating them.
+ * rather than duplicating them. An image_url already in the DB wins over the
+ * seed's: admins and the lazy photo fetch (recipeController) write it there.
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -48,7 +49,7 @@ $sql = "INSERT INTO recipes
    is_low_carb=VALUES(is_low_carb), is_weight_loss=VALUES(is_weight_loss),
    ingredients=VALUES(ingredients), instructions=VALUES(instructions),
    prep_time_min=VALUES(prep_time_min), difficulty=VALUES(difficulty),
-   image_url=VALUES(image_url), video_url=VALUES(video_url), source_channel=VALUES(source_channel)";
+   image_url=COALESCE(image_url, VALUES(image_url)), video_url=VALUES(video_url), source_channel=VALUES(source_channel)";
 
 $count = 0;
 foreach ($recipes as $r) {
