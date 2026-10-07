@@ -35,14 +35,15 @@ a local test APK only — never publish such a build. (Prod must have the `/cata
 `android/keystore.properties` (gitignored) points at the upload keystore:
 
 ```properties
-storeFile=dietplan-upload.jks   # copy of mobile/@shivarya3__diet-plan-mobile.jks
+storeFile=dietplan-upload.jks   # backup: Google Drive  My Drive\Website Data\diet-plan\@shivarya3__diet-plan-mobile.jks
 storePassword=...
 keyAlias=...
 keyPassword=...
 ```
 
 The upload key was created by EAS for the RN app; download it once with `eas credentials --platform android` (from
-`mobile/`) → *Download existing keystore*, and keep the `.jks` in `android/` (gitignored by `*.jks`). Verify its SHA-1
+`mobile/`) → *Download existing keystore*, and keep the `.jks` in `android/` (gitignored by `*.jks`). The backup copy
+lives in Google Drive (`My Drive\Website Data\diet-plan\`) — copy it from there on a new machine. Verify its SHA-1
 is `26:F7:57:39:5E:02:3E:85:BE:EA:62:6E:60:92:05:D7:FF:6B:9C:B8`
 (`keytool -list -v -keystore android\dietplan-upload.jks`). Without `keystore.properties` the release build silently
 falls back to the debug key — never publish that.

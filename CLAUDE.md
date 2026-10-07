@@ -22,7 +22,7 @@ A weekly meal-planner: high-protein, high-calcium, vitamin-rich, **very low carb
 |---------|------|-------|
 | Android | `android/` | **Native** Kotlin + Jetpack Compose (Material 3 Expressive), Hilt, Room, Retrofit — its **own git repo** `shivarya/diet-plan-android` (nested checkout, ignored by this repo). See [android/README.md](android/README.md). |
 | Server | `server/` | PHP 8.0+ + MySQL 8.0+ (front-controller REST API) |
-| Mobile (legacy) | `mobile/` | React Native 0.81 + Expo 54 — replaced in place by `android/` (same package + upload key). Native 2.0.0 (11) is on Play closed testing since 2026-10-07; archive `mobile/` once it's rolled out to production (it also holds the EAS-downloaded upload keystore copy) |
+| Mobile (legacy) | `mobile/` | React Native 0.81 + Expo 54 — replaced in place by `android/` (same package + upload key). Native 2.0.0 (11) went to Play closed testing 2026-10-07, now 2.0.1 (12); archive `mobile/` once it's rolled out to production. The EAS-downloaded upload keystore is backed up in Google Drive (`My Drive\Website Data\diet-plan\@shivarya3__diet-plan-mobile.jks`); release builds use the gitignored copy `android/dietplan-upload.jks` |
 
 Production API target: `https://shivarya.dev/diet_plan/` (cPanel). Local Android dev points at `http://localhost:8000` via an `adb reverse tcp:8000 tcp:8000` tunnel (more reliable than the `10.0.2.2` host alias).
 
