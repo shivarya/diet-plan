@@ -77,7 +77,8 @@ CREATE TABLE IF NOT EXISTS recipes (
   KEY idx_recipes_onion (contains_onion),
   KEY idx_recipes_garlic (contains_garlic),
   KEY idx_recipes_kid (is_kid_friendly),
-  KEY idx_recipes_lowcarb (is_low_carb)
+  KEY idx_recipes_lowcarb (is_low_carb),
+  KEY idx_recipes_updated (updated_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------

@@ -33,15 +33,25 @@ class PlanEngine
   private const DAL_KEYWORDS = ['dal', 'daal', 'dhal', 'sambar', 'kadhi', 'khichdi',
     'rajma', 'chana', 'chole', 'chickpea', 'lentil', 'masoor', 'moong', 'toor', 'urad'];
 
-  public function __construct($db)
+  /** Score jitter source; defaults to mt_rand(0..500)/100. Injectable for golden tests. */
+  private $jitter;
+
+  /**
+   * @param mixed         $db         Database wrapper (may be null when $recipeRows is given).
+   * @param array|null    $recipeRows Pre-loaded recipe rows instead of `SELECT * FROM recipes`
+   *                                  (scripts/engine-golden.php — the Android app's guest-mode
+   *                                  engine is a Kotlin twin of this class, kept in parity by those goldens).
+   * @param callable|null $jitter     fn(): float added to every score; null = random 0..5.
+   */
+  public function __construct($db, ?array $recipeRows = null, ?callable $jitter = null)
   {
     $this->db = $db;
-    $this->loadRecipes();
+    $this->jitter = $jitter ?? fn() => mt_rand(0, 500) / 100.0;
+    $this->loadRecipes($recipeRows ?? $this->db->fetchAll("SELECT * FROM recipes"));
   }
 
-  private function loadRecipes(): void
+  private function loadRecipes(array $rows): void
   {
-    $rows = $this->db->fetchAll("SELECT * FROM recipes");
     foreach ($rows as $r) {
       // Normalize flags/nutrition to ints for scoring; keep raw row for output.
       foreach (['calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g', 'calcium_mg',
@@ -200,7 +210,7 @@ class PlanEngine
     }
 
     // Jitter (0..5) so regenerations/shuffles vary.
-    $score += mt_rand(0, 500) / 100.0;
+    $score += ($this->jitter)();
     return $score;
   }
 
@@ -289,6 +299,17 @@ class PlanEngine
   {
     $this->loadRecentUsage($userId);
     return $this->buildPlanData(loadOrCreatePreferences($this->db, $userId));
+  }
+
+  /**
+   * Build a plan for explicit preferences + recent-usage penalties, without touching
+   * the DB. Used by scripts/engine-golden.php to pin the Kotlin twin's behaviour.
+   */
+  public function buildPlanForPreferences(array $prefs, array $recentPenalty = []): array
+  {
+    $this->recentPenalty = $recentPenalty;
+    $prefs['day_rules'] = normalizeDayRules($prefs['day_rules'] ?? null);
+    return $this->buildPlanData($prefs);
   }
 
   /** Core selection loop: returns [dow => ['meals' => [...], 'sides' => [...], 'kid' => recipeRow|null]]. */

@@ -16,3 +16,12 @@ mobile/ios/
 .DS_Store
 *.log
 Thumbs.db
+
+# Native Android app — its own repo (shivarya/diet-plan-android), nested checkout
+android/
+
+# Signing material (this repo is public)
+*.jks
+*.keystore
+keystore.properties
+credentials.json

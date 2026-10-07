@@ -71,6 +71,13 @@ try {
     exit;
   }
 
+  // Public recipe catalogue (no auth) — snapshot + delta sync for the native app
+  if (strpos($requestUri, '/catalog') === 0) {
+    require_once __DIR__ . '/controllers/catalogController.php';
+    handleCatalogRoutes($requestUri, $requestMethod);
+    exit;
+  }
+
   // Recipes (browse / detail)
   if (strpos($requestUri, '/recipes') === 0) {
     require_once __DIR__ . '/controllers/recipeController.php';

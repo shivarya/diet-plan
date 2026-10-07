@@ -1,46 +1,98 @@
 ---
 name: diet-release
-description: Build and ship the Diet Plan mobile app to Google Play via EAS — bump the version, update the changelog, run the production build, upload the AAB, and register the signing-key SHA-1s for Google Sign-In. Use when releasing or updating the Diet Plan Android app.
+description: Build and ship the Diet Plan native Android app (android/, Kotlin + Compose) to Google Play closed testing — changelog, version bump, prod catalogue snapshot, signed AAB, R8 release smoke test, upgrade test, publish via play-deploy, and the signing-key SHA-1s for Google Sign-In. Use when releasing or updating the Diet Plan Android app.
 ---
 
-Release the Diet Plan **mobile** app (`mobile/`, Expo SDK 54, package `dev.shivarya.dietplan`) to Google Play via EAS. The EAS project is already linked (`app.json` → `extra.eas.projectId`); CLI logged in as `shivarya3`. `eas.json` uses `appVersionSource: "remote"`, so **EAS auto-increments `versionCode`** on each build — `release-version.json`/`version` only drives the human `versionName` + the changelog.
+Release the Diet Plan **native Android app** (`android/`, its own git repo `shivarya/diet-plan-android`, package
+`dev.shivarya.dietplan`). It replaced the React Native app (`mobile/`, last release 1.0.5 / versionCode 10, built on
+EAS) **in place**: same applicationId, same upload key, versionCode continuing upward. Plain Gradle — no EAS, no
+Expo, no `C:\` junction (the 260-char path problem was React Native / NDK only).
 
 ## 1. Changelog + version (do this first)
 
-**ALWAYS add a `mobile/CHANGELOG.md` entry for every user-facing feature/fix before building** — new `## [x.y.z] - YYYY-MM-DD` heading, `### Added/Changed/Fixed`, and a **Google Play Notes** block (copied verbatim into the Play "What's new" field).
+- Add an `android/CHANGELOG.md` entry for every user-facing change: `## [x.y.z] - YYYY-MM-DD`, `### Added/Changed/Fixed`
+  and a **Google Play Notes** block (pasted verbatim into Play's "What's new"; no leading `- ` on a one-line note).
+- Bump `android/version.properties` by hand (`versionCode` +1, `versionName`). It must stay above every versionCode Play
+  has seen (RN/EAS reached 10).
 
-- `release-version.json` (`{version, versionCode}`) is the source of truth.
-- `npm run version:bump:production` bumps patch + versionCode and syncs into `package.json`, `app.json`, `android/app/build.gradle`. For a minor/major bump, edit `release-version.json` first, then `npm run version:sync:config`.
+## 2. Prod catalogue snapshot
 
-## 2. Build (EAS cloud → AAB)
+The APK bundles the whole recipe catalogue (`app/src/main/assets/catalog/catalog.db`, gitignored). Rebuild it from
+**production** every release — recipe ids in the bundle must match the server the app talks to:
 
 ```powershell
-cd "c:\Users\Ash\Documents\Projects\apps\diet-plan\mobile"
-npm run build:production   # bumps version, then EAS production build (AAB), --non-interactive --no-wait
+cd "c:\Users\Ash\Documents\Projects\apps\diet-plan\android" ; .\gradlew.bat :app:refreshCatalog
 ```
-- A pure rebuild with no version bump (e.g. to get a fresh versionCode for a re-upload): `eas build --platform android --profile production --non-interactive --no-wait`.
-- Commit before building — EAS archives the committed git state. The build prints a logs URL; the `.aab` is downloadable there (~10–15 min).
-- The AAB is signed with the EAS upload key; Play App Signing re-signs the installs Google serves.
 
-## 3. Play Store upload
+Check the printed count matches `GET https://shivarya.dev/diet_plan/catalog/meta` and `catalog-meta.json` says
+`"source": "https://shivarya.dev/diet_plan/"`. Release builds enforce this: `verifyReleaseCatalog` (runs before
+`preReleaseBuild`) fails the build if the bundled snapshot came from anywhere else. `-PallowDevCatalog` overrides it for
+a local test APK only — never publish such a build. (Prod must have the `/catalog` endpoints + migration 007 — see
+`diet-deploy-api`.)
 
-Play Console (app `dev.shivarya.dietplan`) → **Test and release** → **Testing → Closed/Internal testing → Create new release** → upload the `.aab` → review → roll out. Add testers, install via the opt-in link. Promote to **Production** only after sign-in is confirmed on a test track. Paste the changelog's Google Play Notes into the release notes. Icons/graphics: `npm run generate-icons` → `mobile/play-store-assets/`.
+## 3. Signing
 
-## 4. Google Sign-In SHA-1s (the gotcha — `DEVELOPER_ERROR`)
+`android/keystore.properties` (gitignored) points at the upload keystore:
 
-`app.json` `extra.googleClientId` must be the **Web** OAuth client ID, and the server `.env` `GOOGLE_CLIENT_ID` must match it. Then register **one Android OAuth client per signing key**, all with package `dev.shivarya.dietplan`, in the **same Google Cloud project** as the Web client (`1080529324514`). A missing key → `DEVELOPER_ERROR` on that install path.
+```properties
+storeFile=dietplan-upload.jks   # copy of mobile/@shivarya3__diet-plan-mobile.jks
+storePassword=...
+keyAlias=...
+keyPassword=...
+```
 
-| Install path | SHA-1 (current) | How to get it |
+The upload key was created by EAS for the RN app; download it once with `eas credentials --platform android` (from
+`mobile/`) → *Download existing keystore*, and keep the `.jks` in `android/` (gitignored by `*.jks`). Verify its SHA-1
+is `26:F7:57:39:5E:02:3E:85:BE:EA:62:6E:60:92:05:D7:FF:6B:9C:B8`
+(`keytool -list -v -keystore android\dietplan-upload.jks`). Without `keystore.properties` the release build silently
+falls back to the debug key — never publish that.
+
+## 4. Build + verify
+
+```powershell
+cd "c:\Users\Ash\Documents\Projects\apps\diet-plan\android" ; .\gradlew.bat :app:testDebugUnitTest :app:lintRelease :app:bundleRelease :app:assembleRelease
+```
+
+- Unit tests include `PlanEngineParityTest` (Kotlin guest engine vs PHP goldens) — if `server/services/PlanEngine.php`
+  changed, regenerate the goldens first: `cd ..\server ; php scripts/engine-golden.php`.
+- `keytool -printcert -jarfile app\build\outputs\bundle\release\app-release.aab` must show the upload key SHA-1 above.
+- **Smoke-test the R8 release APK** (`app\build\outputs\apk\release\app-release.apk`) on a device: launch, guest plan +
+  shuffle, browse/search, recipe detail, sign in. R8 has broken launches in this monorepo before (Room/WorkManager
+  `<init>` — kept by `proguard-rules.pro`).
+- No "Use dev login" button may appear in the release APK (it exists only in debug builds aimed at a local server).
+- **Upgrade test** (first native release, and whenever storage/migration code changes): install the current Play build,
+  sign in, then `adb install -r app-release.apk` — the user must still be signed in, with their theme (`LegacyMigration`
+  reads the RN AsyncStorage `RKStorage` DB). Different signatures (sideload vs Play) can't replace each other — uninstall
+  first in that case, and check Work profile / Private space users too.
+- Uninstall test builds from the user's real phone afterwards.
+
+## 5. Publish (closed testing)
+
+Use the `play-deploy` tool (`deploy diet-plan to closed testing`), which commits to the `alpha` track. Its `diet-plan`
+entry in `play-deploy/config/apps.json` must build `diet-plan/android` with `gradle-direct`
+(`.\gradlew.bat :app:bundleRelease`, AAB at `app/build/outputs/bundle/release/app-release.aab`) — until the first native
+release it still describes the RN/EAS build, so switch it at cutover. Always `--dry-run` first.
+Production rollout is a manual Play Console step — staged (20% → 100%), since the native app replaces the RN app for
+existing users. Commit + push `android/` (and tag the release) before building.
+
+## 6. Google Sign-In SHA-1s (the gotcha — "not registered to use OAuth2.0")
+
+`BuildConfig.GOOGLE_WEB_CLIENT_ID` (`app/build.gradle.kts`) must be the **Web** OAuth client ID, matching the server
+`.env` `GOOGLE_CLIENT_ID`. Each signing key needs its own **Android** OAuth client (package `dev.shivarya.dietplan`) in the
+same Google Cloud project as the Web client (`1080529324514`). Credential Manager reports a missing one as a plain
+cancellation — check `adb logcat -s GoogleAuthClient`.
+
+| Install path | SHA-1 | How to get it |
 |---|---|---|
-| `npm run android` (debug) | `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` | `keytool -list -v -keystore mobile/android/app/debug.keystore -alias androiddebugkey -storepass android` |
-| EAS build / upload key | `26:F7:57:39:5E:02:3E:85:BE:EA:62:6E:60:92:05:D7:FF:6B:9C:B8` | `eas credentials --platform android`, or `keytool -printcert -jarfile <the .aab>` |
-| **Installed from Play** | `82:97:10:87:84:E9:89:8F:DB:EC:8C:39:5F:AC:14:E6:DC:8D:96:D7` | Play Console → Protected with Play → Play Store protection → Play app signing; **or** install from a Play track and extract: `adb shell pm path dev.shivarya.dietplan` → `adb pull <base.apk>` → `apksigner verify --print-certs` (the signer with `O=Google Inc.` is the Play app signing key) |
-
-After registering, wait a few minutes and force-relaunch the app.
+| Debug build (`android/debug.keystore`, the RN debug key) | `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` | `keytool -list -v -keystore android/debug.keystore -alias androiddebugkey -storepass android` |
+| Upload key (sideloaded release builds) | `26:F7:57:39:5E:02:3E:85:BE:EA:62:6E:60:92:05:D7:FF:6B:9C:B8` | `keytool -printcert -jarfile <the .aab>` |
+| **Installed from Play** | `82:97:10:87:84:E9:89:8F:DB:EC:8C:39:5F:AC:14:E6:DC:8D:96:D7` | Play Console → App integrity → Play app signing |
+| Internal App Sharing | (IAS re-signs with its own key) | Play Console → App integrity → Internal app sharing |
 
 ## Rules / notes
 
-- The "Use dev login" button is gated behind `__DEV__` — it only appears in development builds, never in release. (Server also rejects `/auth/login` when `ALLOW_DEV_LOGIN=false`.)
-- Premium/admin are env-driven on the server (`PREMIUM_EMAILS`/`ADMIN_EMAILS`) — no app change needed; users get it on next launch.
-- Windows long-path build issues (local gradle builds): see the workspace-root `CLAUDE.md` (64-bit ABIs only + `C:\` junction).
-- The Play app signing key never changes for the app, so its SHA-1 only needs registering once.
+- Premium/admin are env-driven on the server (`PREMIUM_EMAILS`/`ADMIN_EMAILS`); users pick it up on next launch.
+- Icons/graphics for the listing: `mobile/play-store-assets/` (root `play-store-assets` skill). The launcher icon is the RN
+  foreground + a monochrome vector (`res/drawable/ic_launcher_monochrome.xml`) for Pixel themed icons.
+- Emulator storage on this machine is tight (6 GB data partition, ~95% full): if `adb install -r` fails with
+  `INSUFFICIENT_STORAGE`, uninstall the app first (`scripts/fix-emulator-storage.ps1 -Package dev.shivarya.dietplan`).
