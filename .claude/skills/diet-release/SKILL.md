@@ -93,7 +93,8 @@ cancellation — check `adb logcat -s GoogleAuthClient`.
 ## Rules / notes
 
 - Premium/admin are env-driven on the server (`PREMIUM_EMAILS`/`ADMIN_EMAILS`); users pick it up on next launch.
-- Icons/graphics for the listing: `mobile/play-store-assets/` (root `play-store-assets` skill). The launcher icon is the RN
-  foreground + a monochrome vector (`res/drawable/ic_launcher_monochrome.xml`) for Pixel themed icons.
+- Icons/graphics for the listing: `branding/play-icon-512.png` and `branding/feature-graphic.png` (re-render with
+  `node branding/render.js mobile/scripts/node_modules`). The launcher icon is vectors — `res/drawable/ic_launcher_
+  {background,foreground,monochrome}.xml`; the foreground is also the splash icon. See `branding/README.md`.
 - Emulator storage on this machine is tight (6 GB data partition, ~95% full): if `adb install -r` fails with
   `INSUFFICIENT_STORAGE`, uninstall the app first (`scripts/fix-emulator-storage.ps1 -Package dev.shivarya.dietplan`).
