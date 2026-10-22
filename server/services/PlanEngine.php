@@ -7,7 +7,7 @@ require_once __DIR__ . '/../utils/recipes.php';
  * PlanEngine — rule-based weekly meal planner + single-slot shuffle.
  *
  * Selection is soft-scored (not hard-filtered) so a small recipe pool never runs
- * dry: per-day egg/onion/garlic rules are applied as a hard filter, then the
+ * dry: per-day meat/egg/onion/garlic rules are applied as a hard filter, then the
  * remaining recipes are ranked by a weight-loss-friendly score (protein, calcium,
  * low-carb, vitamins, weight-loss tag) with penalties for repeating within the
  * week and for blowing the daily carb budget. A little jitter keeps regenerated
@@ -148,36 +148,27 @@ class PlanEngine
     return false;
   }
 
-  /** The day's diet level: veg | egg | nonveg (back-compat: derive from egg flag). */
-  private static function dietLevel(array $rules): string
-  {
-    if (isset($rules['diet']) && in_array($rules['diet'], ['veg', 'egg', 'nonveg'], true)) {
-      return $rules['diet'];
-    }
-    return empty($rules['egg']) ? 'veg' : 'egg';
-  }
-
   /**
-   * Does a recipe's food_type fit the day's diet level? veg⊂egg⊂nonveg.
-   * food_type and contains_egg are judged independently by the YouTube-import
-   * AI extraction and occasionally disagree (a recipe tagged food_type='veg'
-   * that still lists egg among its ingredients) -- check contains_egg too so
-   * that drift can't slip an egg dish past a strict veg day.
+   * Does a recipe fit the day's meat and egg rules? The two are independent, so a
+   * non-veg day can still exclude egg. food_type and contains_egg are judged
+   * independently by the YouTube-import AI extraction and occasionally disagree (a
+   * recipe tagged food_type='veg' that still lists egg among its ingredients) --
+   * check contains_egg too so that drift can't slip an egg dish past an egg-free day.
    */
-  private static function foodTypeAllowed(string $foodType, int $containsEgg, string $diet): bool
+  private static function foodTypeAllowed(string $foodType, int $containsEgg, bool $meat, bool $egg): bool
   {
-    if ($diet === 'nonveg') return true;             // anything goes
-    if ($foodType === 'nonveg') return false;        // meat/fish needs a nonveg day
-    if ($diet === 'veg' && ($foodType === 'egg' || $containsEgg === 1)) return false; // egg needs at least an egg day
+    if ($foodType === 'nonveg' && !$meat) return false;                      // meat/fish needs a nonveg day
+    if (($foodType === 'egg' || $containsEgg === 1) && !$egg) return false;  // egg needs an egg-allowed day
     return true;
   }
 
-  /** Apply a day's diet/onion/garlic rules as a hard filter. */
+  /** Apply a day's diet/egg/onion/garlic rules as a hard filter. */
   private function filterByRules(array $pool, array $rules): array
   {
-    $diet = self::dietLevel($rules);
-    return array_values(array_filter($pool, function ($r) use ($rules, $diet) {
-      if (!self::foodTypeAllowed($r['food_type'] ?? 'veg', (int)($r['contains_egg'] ?? 0), $diet)) return false;
+    $meat = ruleAllowsMeat($rules);
+    $egg = ruleAllowsEgg($rules);
+    return array_values(array_filter($pool, function ($r) use ($rules, $meat, $egg) {
+      if (!self::foodTypeAllowed($r['food_type'] ?? 'veg', (int)($r['contains_egg'] ?? 0), $meat, $egg)) return false;
       if (empty($rules['onion']) && $r['contains_onion'] === 1) return false;
       if (empty($rules['garlic']) && $r['contains_garlic'] === 1) return false;
       return true;
@@ -646,7 +637,7 @@ class PlanEngine
   {
     $r = $this->recipeById[$recipeId] ?? null;
     if (!$r) return false;
-    if (!self::foodTypeAllowed($r['food_type'] ?? 'veg', (int)($r['contains_egg'] ?? 0), self::dietLevel($rules))) return false;
+    if (!self::foodTypeAllowed($r['food_type'] ?? 'veg', (int)($r['contains_egg'] ?? 0), ruleAllowsMeat($rules), ruleAllowsEgg($rules))) return false;
     if (empty($rules['onion']) && $r['contains_onion'] === 1) return false;
     if (empty($rules['garlic']) && $r['contains_garlic'] === 1) return false;
     return true;

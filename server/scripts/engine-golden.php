@@ -126,9 +126,9 @@ $base = [
   'include_evening_snack' => 0, 'include_accompaniment' => 1, 'dal_per_week' => 3,
   'nutrition_gate_enabled' => 1, 'day_rules' => defaultDayRules(),
 ];
-$allDays = function (string $diet, int $onion = 1, int $garlic = 1): array {
+$allDays = function (bool $meat, bool $egg, int $onion = 1, int $garlic = 1): array {
   $out = [];
-  foreach (WEEKDAY_KEYS as $d) $out[$d] = dayRule($diet, $onion, $garlic);
+  foreach (WEEKDAY_KEYS as $d) $out[$d] = dayRule($meat, $egg, $onion, $garlic);
   return $out;
 };
 $someRecentPenalty = [];
@@ -140,19 +140,29 @@ foreach ($fixture as $r) {
 
 $cases = [
   ['defaults', $base, []],
-  ['nonveg-all-slots-kid', array_merge($base, ['day_rules' => $allDays('nonveg'), 'include_brunch' => 1,
+  ['nonveg-all-slots-kid', array_merge($base, ['day_rules' => $allDays(true, true), 'include_brunch' => 1,
     'include_evening_snack' => 1, 'has_kid' => 1, 'kid_age' => 6]), []],
-  ['veg-no-allium-no-sides-no-dal', array_merge($base, ['day_rules' => $allDays('veg', 0, 0),
+  ['veg-no-allium-no-sides-no-dal', array_merge($base, ['day_rules' => $allDays(false, false, 0, 0),
     'include_accompaniment' => 0, 'dal_per_week' => 0]), []],
   ['gate-off-dal7-kid', array_merge($base, ['nutrition_gate_enabled' => 0, 'dal_per_week' => 7,
     'has_kid' => 1]), []],
   ['low-carb-ceiling', array_merge($base, ['carb_ceiling_g' => 60, 'include_evening_snack' => 1]), []],
   ['high-carb-egg-dal5', array_merge($base, ['carb_ceiling_g' => 220, 'dal_per_week' => 5,
-    'day_rules' => $allDays('egg', 1, 0)]), []],
+    'day_rules' => $allDays(false, true, 1, 0)]), []],
   ['defaults-with-recent-penalty', array_merge($base, ['has_kid' => 1]), $someRecentPenalty],
   ['legacy-egg-flag-rules', array_merge($base, ['day_rules' => [
     'monday' => ['egg' => 1], 'tuesday' => ['egg' => 0, 'onion' => 0], 'wednesday' => [],
     'thursday' => ['diet' => 'nonveg', 'garlic' => 0], 'friday' => ['diet' => 'bogus', 'egg' => 1],
+  ]]), []],
+  ['nonveg-no-egg-kid', array_merge($base, ['day_rules' => $allDays(true, false), 'include_brunch' => 1,
+    'include_evening_snack' => 1, 'has_kid' => 1, 'kid_age' => 6]), []],
+  ['veg-with-egg-no-onion', array_merge($base, ['day_rules' => $allDays(false, true, 0, 1),
+    'has_kid' => 1]), []],
+  // Egg is its own flag: an explicit egg key wins over the legacy diet level.
+  ['raw-explicit-egg-key', array_merge($base, ['day_rules' => [
+    'monday' => ['diet' => 'veg', 'egg' => 1], 'tuesday' => ['diet' => 'nonveg', 'egg' => 0],
+    'wednesday' => ['diet' => 'egg'], 'thursday' => ['diet' => 'nonveg'], 'friday' => ['diet' => 'egg', 'egg' => 0],
+    'saturday' => ['diet' => 'nonveg', 'egg' => '0', 'onion' => 0], 'sunday' => ['diet' => 'veg'],
   ]]), []],
 ];
 

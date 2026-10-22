@@ -133,8 +133,8 @@ function generateAiPlan(int $userId, string $weekStart): array
       . "You select recipes ONLY from the provided catalog by their numeric id. "
       . "Goals per day: high protein, high calcium, vitamin-rich, very low carb, balanced for weight loss. "
       . "Cuisine is Indian or Indian-twist. Respect each day's rules strictly. "
-      . "Each day has a diet level: 'veg' allows only food_type=veg; 'egg' allows food_type veg or egg; "
-      . "'nonveg' allows any food_type. Never pick a recipe whose food_type exceeds the day's diet level. "
+      . "Meat/fish (food_type=nonveg) is allowed only on days whose diet is 'nonveg'. "
+      . "Egg is a separate rule: when egg=0 do not pick egg=1 or food_type=egg, even on a 'nonveg' day. "
       . "When onion=0 do not pick onion=1; when garlic=0 do not pick garlic=1. "
       . "Pick breakfast, lunch and dinner for every weekday from recipes whose meal_type matches the slot. "
       . "Avoid repeating the same recipe id across the week. "
@@ -197,7 +197,7 @@ function generateAiPlan(int $userId, string $weekStart): array
  * Premium: "cook from my ingredients" — suggest 5 full, beginner-friendly
  * recipes from the user's available ingredients plus optional preferences
  * (meal type, servings, time, cuisine, spice, equipment, output language and a
- * free-text twist), honouring the chosen diet + onion/garlic rules.
+ * free-text twist), honouring the chosen diet + egg/onion/garlic rules.
  */
 function aiFromIngredients()
 {
@@ -215,21 +215,22 @@ function aiFromIngredients()
   $ingredients = array_slice(array_map('strval', $ingredients), 0, 40);
 
   $prefs = loadOrCreatePreferences($db, $userId);
-  // Explicit diet/onion/garlic selection wins; else fall back to a day's rules;
-  // else default to vegetarian with onion/garlic allowed.
-  if (isset($input['diet']) && in_array($input['diet'], ['veg', 'egg', 'nonveg'], true)) {
+  // Explicit diet/egg/onion/garlic selection wins; else fall back to a day's rules;
+  // else default to vegetarian, no egg, with onion/garlic allowed. diet is veg or
+  // nonveg; older clients send 'egg' for veg + egg and no egg field.
+  if (isset($input['diet']) && in_array($input['diet'], DIET_LEVELS, true)) {
     $diet = $input['diet'];
-    $rules = [
-      'diet'   => $diet,
-      'egg'    => $diet === 'veg' ? 0 : 1,
-      'onion'  => array_key_exists('onion', $input) ? (int)!!$input['onion'] : 1,
-      'garlic' => array_key_exists('garlic', $input) ? (int)!!$input['garlic'] : 1,
-    ];
+    $rules = dayRule(
+      $diet === 'nonveg',
+      array_key_exists('egg', $input) ? (bool)$input['egg'] : $diet !== 'veg',
+      array_key_exists('onion', $input) ? (int)!!$input['onion'] : 1,
+      array_key_exists('garlic', $input) ? (int)!!$input['garlic'] : 1
+    );
   } else {
     $day = strtolower((string)($input['day'] ?? ''));
     $rules = in_array($day, WEEKDAY_KEYS, true)
       ? $prefs['day_rules'][$day]
-      : ['diet' => 'veg', 'egg' => 0, 'onion' => 1, 'garlic' => 1];
+      : dayRule(false, false);
   }
 
   $ai = new AIClient();
@@ -238,11 +239,13 @@ function aiFromIngredients()
     return;
   }
 
-  $diet = $rules['diet'] ?? (empty($rules['egg']) ? 'veg' : 'egg');
+  $meat = ruleAllowsMeat($rules);
+  $egg = ruleAllowsEgg($rules);
   $ruleText = [];
-  if ($diet === 'veg')         $ruleText[] = 'strictly vegetarian (no egg, no meat, no fish)';
-  elseif ($diet === 'egg')     $ruleText[] = 'vegetarian, egg allowed (no meat or fish)';
-  else                         $ruleText[] = 'non-vegetarian allowed (meat, fish or egg are fine)';
+  if (!$meat && !$egg)         $ruleText[] = 'strictly vegetarian (no egg, no meat, no fish)';
+  elseif (!$meat)              $ruleText[] = 'vegetarian, egg allowed (no meat or fish)';
+  elseif ($egg)                $ruleText[] = 'non-vegetarian allowed (meat, fish or egg are fine)';
+  else                         $ruleText[] = 'non-vegetarian allowed (meat or fish are fine) but no egg';
   if (empty($rules['onion']))  $ruleText[] = 'no onion';
   if (empty($rules['garlic'])) $ruleText[] = 'no garlic';
   $constraints = implode(', ', $ruleText);

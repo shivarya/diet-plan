@@ -3,13 +3,14 @@
  * Dietary-preference helpers shared by the preference controller and PlanEngine.
  *
  * day_rules is keyed by weekday name; each value is { diet, egg, onion, garlic }:
- *   - diet is one of veg | egg (vegetarian + egg) | nonveg (meat/fish allowed)
- *   - onion / garlic are 1 = allowed, 0 = excluded
- *   - egg is derived from diet (egg = diet !== 'veg') and kept for badges/AI/back-compat
+ *   - meat/fish is allowed only when diet is 'nonveg'
+ *   - egg / onion / garlic are independent toggles: 1 = allowed, 0 = excluded
+ *   - diet is also the legacy 3-level label (veg | egg = veg + egg | nonveg), emitted
+ *     from the flags so older clients still read it; egg is the source of truth
  * Defaults encode a vegetarian standing diet:
- *   - egg excluded on Tuesday / Thursday / Saturday (diet 'veg')
+ *   - egg excluded on Tuesday / Thursday / Saturday
  *   - onion & garlic excluded on Thursday
- * Everything else allows egg (diet 'egg'), and every value is editable per day.
+ * Everything else allows egg, and every value is editable per day.
  */
 
 const WEEKDAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -21,29 +22,40 @@ function weekdayKey(int $dow): string
   return WEEKDAY_KEYS[$dow % 7];
 }
 
-/** Build one day's rule from a diet level + onion/garlic flags (egg is derived). */
-function dayRule(string $diet, int $onion = 1, int $garlic = 1): array
+/** Build one day's rule from meat/egg/onion/garlic flags (diet is the derived legacy label). */
+function dayRule(bool $meat, bool $egg, int $onion = 1, int $garlic = 1): array
 {
-  $diet = in_array($diet, DIET_LEVELS, true) ? $diet : 'veg';
   return [
-    'diet'   => $diet,
-    'egg'    => $diet === 'veg' ? 0 : 1, // derived; kept for badges/AI/back-compat
+    'diet'   => $meat ? 'nonveg' : ($egg ? 'egg' : 'veg'),
+    'egg'    => $egg ? 1 : 0,
     'onion'  => $onion,
     'garlic' => $garlic,
   ];
+}
+
+/** May this day's dishes contain meat or fish? */
+function ruleAllowsMeat(array $rules): bool
+{
+  return ($rules['diet'] ?? 'veg') === 'nonveg';
+}
+
+/** May this day's dishes contain egg? */
+function ruleAllowsEgg(array $rules): bool
+{
+  return !empty($rules['egg']);
 }
 
 /** The default per-day rule set (vegetarian standing diet). */
 function defaultDayRules(): array
 {
   return [
-    'monday'    => dayRule('egg'),
-    'tuesday'   => dayRule('veg'),
-    'wednesday' => dayRule('egg'),
-    'thursday'  => dayRule('veg', 0, 0),
-    'friday'    => dayRule('egg'),
-    'saturday'  => dayRule('veg'),
-    'sunday'    => dayRule('egg'),
+    'monday'    => dayRule(false, true),
+    'tuesday'   => dayRule(false, false),
+    'wednesday' => dayRule(false, true),
+    'thursday'  => dayRule(false, false, 0, 0),
+    'friday'    => dayRule(false, true),
+    'saturday'  => dayRule(false, false),
+    'sunday'    => dayRule(false, true),
   ];
 }
 
@@ -59,18 +71,24 @@ function normalizeDayRules($input): array
     $src = is_array($input[$day] ?? null) ? $input[$day] : [];
     $base = $defaults[$day];
 
-    // Resolve diet: explicit value wins; otherwise derive from a legacy egg flag.
-    if (isset($src['diet']) && in_array($src['diet'], DIET_LEVELS, true)) {
-      $diet = $src['diet'];
+    // Meat follows diet; egg is its own flag, else implied by a legacy diet level
+    // (old clients send 'egg'/'nonveg' for an egg-allowed day). A rule with only an
+    // egg flag (pre-diet clients) is vegetarian.
+    $diet = isset($src['diet']) && in_array($src['diet'], DIET_LEVELS, true) ? $src['diet'] : null;
+    if ($diet !== null) {
+      $meat = $diet === 'nonveg';
+      $egg = isset($src['egg']) ? (bool)$src['egg'] : $diet !== 'veg';
     } elseif (isset($src['egg'])) {
-      $diet = $src['egg'] ? 'egg' : 'veg';
+      $meat = false;
+      $egg = (bool)$src['egg'];
     } else {
-      $diet = $base['diet'];
+      $meat = ruleAllowsMeat($base);
+      $egg = ruleAllowsEgg($base);
     }
 
     $onion  = isset($src['onion'])  ? (int)!!$src['onion']  : $base['onion'];
     $garlic = isset($src['garlic']) ? (int)!!$src['garlic'] : $base['garlic'];
-    $out[$day] = dayRule($diet, $onion, $garlic);
+    $out[$day] = dayRule($meat, $egg, $onion, $garlic);
   }
   return $out;
 }
