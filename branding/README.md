@@ -26,6 +26,8 @@ The Android app draws the logo from vectors, not these files — change them tog
 - `android/app/src/main/res/drawable/ic_launcher_background.xml` — the green gradient layer
 - `android/app/src/main/res/drawable/ic_launcher_monochrome.xml` — the themed (Material You) icon: rim, katoris and
   leaf in one colour
+- `android/app/src/main/res/raw/share_card.png` — a copy of `feature-graphic.png`, the image "Share Diet Plan"
+  sends (`render.js` refreshes it)
 
 The legacy React Native app (`mobile/`) keeps its old plate-and-leaf icon and its own generator
 (`mobile/scripts/generate-icons.js`, output in `mobile/play-store-assets/`).

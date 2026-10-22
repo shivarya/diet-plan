@@ -19,4 +19,10 @@ const read = (f) => fs.readFileSync(here(f), 'utf8');
   await sharp(render(playIcon, 512)).png().toFile(here('play-icon-512.png')); // Play wants 32-bit (RGBA) here
   await sharp(render(read('feature-graphic.svg'), 1024)).flatten({ background: '#1E7D52' }).removeAlpha().png().toFile(here('feature-graphic.png'));
   console.log('Wrote play-icon-512.png and feature-graphic.png');
+  // The app's "Share Diet Plan" sends the feature graphic as its image (android/ is a nested checkout).
+  const shareCard = here('../android/app/src/main/res/raw/share_card.png');
+  if (fs.existsSync(path.dirname(shareCard))) {
+    fs.copyFileSync(here('feature-graphic.png'), shareCard);
+    console.log('Copied it to android/app/src/main/res/raw/share_card.png');
+  }
 })();
