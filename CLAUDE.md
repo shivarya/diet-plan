@@ -6,7 +6,7 @@ Guidance for Claude Code when working inside `diet-plan/`. Launch Claude from th
 
 A weekly meal-planner: high-protein, high-calcium, vitamin-rich, **very low carb**, balanced for weight loss. Food is Indian (plus Indian-twist foreign dishes — pasta, Hakka noodles, fried rice). Key rules:
 
-- **Per-day diet level**, editable in Settings: `veg` / `egg` (veg + egg) / `nonveg` (meat/fish). Defaults are vegetarian — egg on Mon/Wed/Fri/Sun, veg on Tue/Thu/Sat. Stored as `diet` in the `day_rules` JSON (the legacy `egg` flag is derived from it for back-compat).
+- **Per-day rules**, editable in Settings: Veg or Non-veg (meat/fish), plus **egg, onion and garlic as independent allow/exclude toggles** (since 2.0.3: a non-veg day can leave out egg, a veg day can allow it). Defaults are vegetarian: egg allowed Mon/Wed/Fri/Sun. In the `day_rules` JSON `{diet, egg, onion, garlic}`, `egg` is authoritative and `diet` is the legacy 3-level label (`veg`/`egg`/`nonveg`, emitted from the flags) that older clients read; meat is allowed only when `diet` is `nonveg` (`utils/preferences.php`, mirrored in the app's `Preferences.kt`). Recipes and Cook AI have the same Veg/Non-veg + No egg/onion/garlic choices.
 - **No onion/garlic on Thursday** by default; any day's onion/garlic/diet rule is editable.
 - **Roti/rice side**: lunch & dinner get a main dish + a bread/rice accompaniment (each shuffleable). Opt-out via `include_accompaniment`.
 - **Optional slots**: brunch and an evening snack are opt-in per user (`include_brunch`, `include_evening_snack`); base slots are breakfast/lunch/dinner.
@@ -22,7 +22,7 @@ A weekly meal-planner: high-protein, high-calcium, vitamin-rich, **very low carb
 |---------|------|-------|
 | Android | `android/` | **Native** Kotlin + Jetpack Compose (Material 3 Expressive), Hilt, Room, Retrofit — its **own git repo** `shivarya/diet-plan-android` (nested checkout, ignored by this repo). See [android/README.md](android/README.md). |
 | Server | `server/` | PHP 8.0+ + MySQL 8.0+ (front-controller REST API) |
-| Mobile (legacy) | `mobile/` | React Native 0.81 + Expo 54 — replaced in place by `android/` (same package + upload key). Native 2.0.0 (11) went to Play closed testing 2026-10-07, now 2.0.2 (13) (2026-10-22: Thali Week icon, Share Diet Plan); archive `mobile/` once it's rolled out to production. The EAS-downloaded upload keystore is backed up in Google Drive (`My Drive\Website Data\diet-plan\@shivarya3__diet-plan-mobile.jks`); release builds use the gitignored copy `android/dietplan-upload.jks` |
+| Mobile (legacy) | `mobile/` | React Native 0.81 + Expo 54 — replaced in place by `android/` (same package + upload key). Native 2.0.0 (11) went to Play closed testing 2026-10-07, now 2.0.3 (14) (2026-10-22: egg as its own day/Recipes/Cook AI toggle, like onion and garlic; 2.0.2 (13) the same day: Thali Week icon, Share Diet Plan); archive `mobile/` once it's rolled out to production. The EAS-downloaded upload keystore is backed up in Google Drive (`My Drive\Website Data\diet-plan\@shivarya3__diet-plan-mobile.jks`); release builds use the gitignored copy `android/dietplan-upload.jks` |
 
 Production API target: `https://shivarya.dev/diet_plan/` (cPanel). Local Android dev points at `http://localhost:8000` via an `adb reverse tcp:8000 tcp:8000` tunnel (more reliable than the `10.0.2.2` host alias).
 
