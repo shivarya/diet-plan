@@ -445,20 +445,7 @@ class PlanEngine
     $this->loadRecentUsage($userId);
     $prefs = loadOrCreatePreferences($this->db, $userId);
     $this->nutritionGateEnabled = (int)($prefs['nutrition_gate_enabled'] ?? 1) === 1;
-    $rules = $prefs['day_rules'][weekdayKey((int)$item['day_of_week'])];
     $isKid = (int)$item['is_kid_addon'] === 1;
-    $isSide = ($item['slot_role'] ?? 'main') === 'side';
-
-    // Pool: kid-friendly across meal types for add-ons; bread/rice for a side;
-    // else mains of the same meal type.
-    if ($isKid) {
-      $basePool = $this->kidPool;
-    } elseif ($isSide) {
-      $basePool = $this->accompanimentPool;
-    } else {
-      $basePool = $this->byMealType[$item['meal_type']];
-    }
-    $pool = $this->filterByRules($basePool, $rules);
 
     // Exclude every recipe already used in this plan (so the shuffle is genuinely new),
     // plus the current recipe.
@@ -468,38 +455,11 @@ class PlanEngine
     );
     $excludeIds = array_map(fn($x) => (int)$x['recipe_id'], $planItems);
 
-    // Also exclude the last few recipes THIS slot itself has already shown via
-    // shuffle. Without this, a recipe shuffled away is immediately eligible
-    // again on the very next tap (it's no longer "in the plan" once replaced),
-    // and since the top-scored shortlist barely changes between calls, a few
-    // taps would cycle right back to it.
-    $history = json_decode((string)($item['shuffle_history'] ?? '[]'), true);
-    $history = is_array($history) ? array_map('intval', $history) : [];
-    $excludeWithHistory = array_values(array_unique(array_merge($excludeIds, $history)));
-
-    $pick = $this->selectRandomTop($pool, [], (int)$prefs['carb_ceiling_g'], $excludeWithHistory);
-    if (!$pick) {
-      // History made the pool too small — drop it, keep the whole-plan exclusion.
-      $pick = $this->selectRandomTop($pool, [], (int)$prefs['carb_ceiling_g'], $excludeIds);
-    }
-    if (!$pick) {
-      // Still exhausted — relax to just excluding the current recipe.
-      $pick = $this->selectRandomTop($pool, [], (int)$prefs['carb_ceiling_g'], [(int)$item['recipe_id']]);
-    }
+    $pick = $this->pickReplacement($item, $prefs, $excludeIds);
     if (!$pick) {
       throw new Exception('No alternative recipe available for this slot');
     }
-
-    // Remember the recipe being replaced so it stays excluded for the next
-    // few shuffles of this same slot; cap so the list can't grow unbounded.
-    $newHistory = array_slice(array_unique(array_merge([(int)$item['recipe_id']], $history)), 0, 6);
-
-    // Kid add-ons keep their own recipe's meal_type; adult slots stay on their slot.
-    $newMealType = $isKid ? $pick['meal_type'] : $item['meal_type'];
-    $this->db->execute(
-      "UPDATE meal_plan_items SET recipe_id = ?, meal_type = ?, shuffle_history = ? WHERE id = ?",
-      [$pick['id'], $newMealType, json_encode($newHistory), $itemId]
-    );
+    $newMealType = $this->replaceItemRecipe($item, $pick);
 
     return [
       'item_id' => $itemId,
@@ -512,7 +472,99 @@ class PlanEngine
     ];
   }
 
-  /** Build the full assembled plan response (days, meals, kid add-ons, totals). */
+  /**
+   * A recipe to put in place of a plan item that satisfies its day's current rules,
+   * or null if none does. The pool is kid-friendly dishes of any meal type for a kid
+   * add-on, bread/rice for a side, else mains of the item's meal type.
+   * $planRecipeIds (every recipe in the plan) are excluded so the pick is genuinely
+   * new, and so is the slot's own shuffle_history: without it, a recipe shuffled
+   * away is eligible again on the very next tap (it's no longer "in the plan" once
+   * replaced), and since the top-scored shortlist barely changes between calls, a
+   * few taps would cycle right back to it. Both exclusions relax if the pool runs dry.
+   */
+  private function pickReplacement(array $item, array $prefs, array $planRecipeIds): ?array
+  {
+    $rules = $prefs['day_rules'][weekdayKey((int)$item['day_of_week'])];
+    if ((int)$item['is_kid_addon'] === 1) {
+      $basePool = $this->kidPool;
+    } elseif (($item['slot_role'] ?? 'main') === 'side') {
+      $basePool = $this->accompanimentPool;
+    } else {
+      $basePool = $this->byMealType[$item['meal_type']] ?? [];
+    }
+    $pool = $this->filterByRules($basePool, $rules);
+    $carb = (int)$prefs['carb_ceiling_g'];
+
+    $excludeWithHistory = array_values(array_unique(array_merge($planRecipeIds, self::shuffleHistory($item))));
+    return $this->selectRandomTop($pool, [], $carb, $excludeWithHistory)
+      ?? $this->selectRandomTop($pool, [], $carb, $planRecipeIds)
+      ?? $this->selectRandomTop($pool, [], $carb, [(int)$item['recipe_id']]);
+  }
+
+  /** The recipe ids a slot has shown via shuffle, newest first. */
+  private static function shuffleHistory(array $item): array
+  {
+    $history = json_decode((string)($item['shuffle_history'] ?? '[]'), true);
+    return is_array($history) ? array_map('intval', $history) : [];
+  }
+
+  /**
+   * Point a plan item at $pick, remembering the recipe it replaces in the slot's
+   * shuffle_history (capped). A kid add-on takes its new recipe's meal_type; adult
+   * slots stay on their slot. Returns the item's meal_type afterwards.
+   */
+  private function replaceItemRecipe(array $item, array $pick): string
+  {
+    $history = array_slice(array_unique(array_merge([(int)$item['recipe_id']], self::shuffleHistory($item))), 0, 6);
+    $mealType = (int)$item['is_kid_addon'] === 1 ? $pick['meal_type'] : $item['meal_type'];
+    $this->db->execute(
+      "UPDATE meal_plan_items SET recipe_id = ?, meal_type = ?, shuffle_history = ? WHERE id = ?",
+      [$pick['id'], $mealType, json_encode(array_values($history)), (int)$item['id']]
+    );
+    return $mealType;
+  }
+
+  /**
+   * Bring a stored plan in line with the day rules as they are now. Dishes are
+   * checked against the rules when they're picked, but the plan outlives that: the
+   * user can change a day's rules in Settings later, and a catalogue fix can
+   * reclassify a recipe (a "veg" dish found to contain chicken). Every dish that
+   * breaks its day's current rules is swapped for one that fits — picked the way a
+   * shuffle picks — or dropped if nothing fits. Returns the number of items changed.
+   */
+  public function enforceDayRules(int $userId, int $planId, array $prefs): int
+  {
+    $items = $this->db->fetchAll("SELECT * FROM meal_plan_items WHERE meal_plan_id = ? ORDER BY id", [$planId]);
+    $broken = array_values(array_filter($items, function ($it) use ($prefs) {
+      $rules = $prefs['day_rules'][weekdayKey((int)$it['day_of_week'])];
+      // A recipe gone from the catalogue isn't shown at all, so it can't break a rule.
+      return isset($this->recipeById[(int)$it['recipe_id']])
+        && !$this->recipeSatisfiesRules((int)$it['recipe_id'], $rules);
+    }));
+    if (empty($broken)) {
+      return 0;
+    }
+
+    $this->loadRecentUsage($userId);
+    $this->nutritionGateEnabled = (int)($prefs['nutrition_gate_enabled'] ?? 1) === 1;
+    $planRecipeIds = array_map(fn($x) => (int)$x['recipe_id'], $items);
+    foreach ($broken as $item) {
+      $pick = $this->pickReplacement($item, $prefs, $planRecipeIds);
+      if ($pick) {
+        $this->replaceItemRecipe($item, $pick);
+        $planRecipeIds[] = (int)$pick['id'];
+      } else {
+        $this->db->execute("DELETE FROM meal_plan_items WHERE id = ?", [(int)$item['id']]);
+      }
+    }
+    return count($broken);
+  }
+
+  /**
+   * Build the full assembled plan response (days, meals, kid add-ons, totals). Each
+   * day is labelled with its current rules, so the plan is first made to follow them
+   * (enforceDayRules) — otherwise a day marked veg could still list an egg dish.
+   */
   public function getAssembledPlan(int $userId, int $planId): array
   {
     $plan = $this->db->fetchOne(
@@ -524,6 +576,7 @@ class PlanEngine
     }
 
     $prefs = loadOrCreatePreferences($this->db, $userId);
+    $this->enforceDayRules($userId, $planId, $prefs);
     $items = $this->db->fetchAll(
       "SELECT * FROM meal_plan_items WHERE meal_plan_id = ?
         ORDER BY day_of_week, is_kid_addon,

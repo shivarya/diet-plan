@@ -1,13 +1,14 @@
 """
 Apply catalogue data fixes to database/seed/recipes.json (then deploy + `php scripts/seed.php`).
 
-  python scripts/apply-nutrition-corrections.py database/seed/nutrition-corrections-2026-10.json
+  python scripts/apply-nutrition-corrections.py [database/seed/nutrition-corrections-2026-10.json]
 
-1. Nutrition: each slug in the corrections file gets its re-estimated per-serving values (and `servings` where given),
-   nutrition_source = "estimated", and is_high_protein / is_low_carb / is_weight_loss recomputed with the same
-   thresholds as scripts/indb/merge.py (protein >= 12; carbs <= 18; kcal <= 400 and protein >= 8).
+1. Nutrition (only with a corrections file): each slug in it gets its re-estimated per-serving values (and `servings`
+   where given), nutrition_source = "estimated", and is_high_protein / is_low_carb / is_weight_loss recomputed with the
+   same thresholds as scripts/indb/merge.py (protein >= 12; carbs <= 18; kcal <= 400 and protein >= 8).
 2. Egg flags: every recipe whose ingredients list egg (see audit-catalog.py) gets contains_egg = 1, and a "veg"
-   food_type becomes "egg" (nonveg stays nonveg).
+   food_type with contains_egg = 1 becomes "egg" (nonveg stays nonveg).
+3. Meat: every recipe whose ingredients list meat, fish or seafood (audit-catalog.py check D) becomes "nonveg".
 
 Only the affected lines of recipes.json are rewritten (one recipe per line), so the diff stays reviewable.
 Idempotent: running it twice changes nothing the second time.
@@ -30,11 +31,13 @@ def recompute_flags(r):
     r["is_weight_loss"] = 1 if (k <= 400 and p >= 8) else 0
 
 
-def main(corrections_path):
-    corrections = json.loads(Path(corrections_path).read_text(encoding="utf-8"))["corrections"]
+def main(corrections_path=None):
+    corrections = {}
+    if corrections_path:
+        corrections = json.loads(Path(corrections_path).read_text(encoding="utf-8"))["corrections"]
     raw = SEED.read_bytes().decode("utf-8")
     lines = raw.split("\n")
-    seen, nutrition_fixed, egg_fixed = set(), [], []
+    seen, nutrition_fixed, egg_fixed, type_fixed = set(), [], [], []
     for i, line in enumerate(lines):
         body = line.rstrip("\r")
         stripped = body.strip()
@@ -54,11 +57,17 @@ def main(corrections_path):
             r["contains_egg"] = 1
             if r.get("food_type", "veg") == "veg":
                 r["food_type"] = "egg"
+        if audit.egg_tagged_veg(r):
+            r["food_type"] = "egg"
+        if audit.meat_words(r):
+            r["food_type"] = "nonveg"
         if r != before:
             if fix:
                 nutrition_fixed.append(r["slug"])
             if r.get("contains_egg") != before.get("contains_egg"):
                 egg_fixed.append(r["slug"])
+            if r.get("food_type") != before.get("food_type"):
+                type_fixed.append(f"{r['slug']}: {before.get('food_type')} -> {r['food_type']}")
             cr = "\r" if body != line else ""
             lines[i] = "  " + json.dumps(r, ensure_ascii=False) + ("," if trailing_comma else "") + cr
     missing = sorted(set(corrections) - seen)
@@ -66,12 +75,14 @@ def main(corrections_path):
         sys.exit(f"Slugs not found in recipes.json: {missing}")
     SEED.write_bytes("\n".join(lines).encode("utf-8"))
     json.loads(SEED.read_text(encoding="utf-8"))  # still valid JSON
-    print(f"nutrition corrected: {len(nutrition_fixed)}; egg flags fixed: {len(egg_fixed)}")
+    print(f"nutrition corrected: {len(nutrition_fixed)}; egg flags fixed: {len(egg_fixed)}; food types fixed: {len(type_fixed)}")
     for s in egg_fixed:
         print(f"   egg: {s}")
+    for s in type_fixed:
+        print(f"   type: {s}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) > 2:
         sys.exit(__doc__)
-    main(sys.argv[1])
+    main(sys.argv[1] if len(sys.argv) == 2 else None)

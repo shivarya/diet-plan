@@ -10,7 +10,11 @@ Reports:
      Fix by adding re-estimated values to a nutrition-corrections JSON and running apply-nutrition-corrections.py.
   B. egg in the ingredients while contains_egg = 0 — such recipes can land on strict veg days.
   C. per-serving kcal far from 4*protein + 4*carbs + 9*fat (> 35% and > 150 kcal apart).
-Exit code 1 if A or B finds anything (so it can gate a merge step).
+  D. meat, fish or seafood (incl. fish/oyster sauce, meat stock, gelatin) in the ingredients while food_type is
+     not 'nonveg' — such recipes land on veg days, and an 'egg' one even on veg days that allow egg.
+  E. contains_egg = 1 while food_type = 'veg' — the planner and app already treat it as egg, but keep them in step.
+Exit code 1 if A, B, D or E finds anything (so it can gate a merge step).
+apply-nutrition-corrections.py fixes B, D and E.
 """
 import json
 import re
@@ -21,6 +25,27 @@ SEED = Path(__file__).resolve().parent.parent / "database" / "seed" / "recipes.j
 
 EGG = re.compile(r"\b(eggs?|anda|ande|egg (yolks?|whites?))\b", re.I)
 NOT_EGG = re.compile(r"eggless|egg ?plant|egg[- ]free|no egg|without egg|egg (replacer|substitute)|flax egg", re.I)
+
+MEAT = re.compile(
+    r"\b(chicken|murgh?|mutton|lamb|goat|gosht|keema|kheema|qeema|beef|pork|bacon|ham|sausages?|salami|pepperoni|"
+    r"turkey|duck|fish|machh?li|macher|prawns?|shrimps?|jhinga|crabs?|lobsters?|squid|calamari|octopus|mussels?|"
+    r"clams?|oysters?|scallops?|tuna|salmon|sardines?|mackerel|surmai|pomfret|rohu|hilsa|ilish|bangda|anchov(y|ies)|"
+    r"seafood|meat|meatballs?|liver|kaleji|chorizo|prosciutto|gelatine?)\b",
+    re.I,
+)
+# Vegetarian look-alikes, removed before MEAT is searched.
+NOT_MEAT = re.compile(
+    r"\b(soya?|veg|vegan|vegetarian|vegetable|mock|plant[- ]based|jackfruit|mushroom|nutri|paneer|tofu)"
+    r"[- ](chicken|keema|kheema|meat|fish|mutton|sausages?|nuggets?|oyster sauce|gelatine?|chunks? kh?eema)\b"
+    r"|\b(chicken|mutton|meat|fish|biryani)\s+masala\b"
+    r"|\boyster mushrooms?\b|\bgoat'?s? cheese\b"
+    r"|\bgelatine? or agar|\bagar[- ]?(agar)?\s*(\(veg(etarian)? gelatine?\)|or gelatine?)",
+    re.I,
+)
+# Flagged by D but checked against their ingredients (2026-10-23) and kept as tagged: the meat is an optional extra.
+REVIEWED_NOT_MEAT = {
+    "egg-pizza-roll-with-chapati-yourfoodlab",  # "toppings: chopped vegetables or chicken chunks"
+}
 
 # Flagged by A but checked against their ingredients (2026-10-07) and kept: genuinely heavy dishes.
 REVIEWED_HEAVY = {
@@ -41,6 +66,18 @@ def egg_unflagged(r):
     return bool(EGG.search(ing)) and not NOT_EGG.search(ing) and not r.get("contains_egg")
 
 
+def meat_words(r):
+    """Meat/fish words in the ingredients of a recipe not tagged nonveg (empty when none, or reviewed)."""
+    if r.get("food_type") == "nonveg" or r["slug"] in REVIEWED_NOT_MEAT:
+        return []
+    ing = NOT_MEAT.sub(" ", " | ".join(r.get("ingredients") or []))
+    return sorted({m.group(0).lower() for m in MEAT.finditer(ing)})
+
+
+def egg_tagged_veg(r):
+    return bool(r.get("contains_egg")) and r.get("food_type") == "veg"
+
+
 def kcal_mismatch(r):
     k = r.get("calories") or 0
     m = 4 * (r.get("protein_g") or 0) + 4 * (r.get("carbs_g") or 0) + 9 * (r.get("fat_g") or 0)
@@ -52,6 +89,8 @@ def main():
     a = [r for r in recipes if implausible(r) and r["slug"] not in REVIEWED_HEAVY]
     b = [r for r in recipes if egg_unflagged(r)]
     c = [r for r in recipes if kcal_mismatch(r) and not implausible(r)]
+    d = [r for r in recipes if meat_words(r)]
+    e = [r for r in recipes if egg_tagged_veg(r)]
     print(f"{len(recipes)} recipes")
     print(f"A. implausible per-serving nutrition: {len(a)} (plus {len(REVIEWED_HEAVY)} reviewed and kept)")
     for r in sorted(a, key=lambda r: -(r.get("calories") or 0)):
@@ -62,7 +101,13 @@ def main():
     print(f"C. kcal inconsistent with macros: {len(c)}")
     for r in c[:30]:
         print(f"   {r['slug']}: {r.get('calories')} kcal vs macros P{r.get('protein_g')} C{r.get('carbs_g')} F{r.get('fat_g')}")
-    return 1 if (a or b) else 0
+    print(f"D. meat/fish listed but food_type not nonveg: {len(d)} (plus {len(REVIEWED_NOT_MEAT)} reviewed and kept)")
+    for r in d:
+        print(f"   {r['slug']} ({r.get('food_type')}): {', '.join(meat_words(r))}")
+    print(f"E. contains_egg = 1 but food_type = veg: {len(e)}")
+    for r in e:
+        print(f"   {r['slug']}")
+    return 1 if (a or b or d or e) else 0
 
 
 if __name__ == "__main__":
