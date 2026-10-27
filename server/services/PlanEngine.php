@@ -33,6 +33,31 @@ class PlanEngine
   private const DAL_KEYWORDS = ['dal', 'daal', 'dhal', 'sambar', 'kadhi', 'khichdi',
     'rajma', 'chana', 'chole', 'chickpea', 'lentil', 'masoor', 'moong', 'toor', 'urad'];
 
+  /** A slot remembers this many recipes it was shuffled away from; none comes back until they run out. */
+  public const SHUFFLE_HISTORY = 30;
+  /** A shuffle avoids look-alikes of the current dish and the last few it replaced (current + 4). */
+  private const SIMILAR_WINDOW = 5;
+  /** A shuffle picks at random among this many best-scored candidates. */
+  private const SHUFFLE_TOP_K = 24;
+  /** Name words that don't tell dishes apart: "Easy Jain Palak Paneer Recipe" is Palak Paneer. */
+  private const NAME_FILLER = ['recipe', 'style', 'easy', 'quick', 'instant', 'healthy', 'homemade', 'home', 'made',
+    'high', 'protein', 'low', 'carb', 'calorie', 'with', 'and', 'the', 'of', 'an', 'in', 'ki', 'ka', 'ke', 'wala',
+    'wali', 'special', 'tasty', 'simple', 'best', 'perfect', 'restaurant', 'dhaba', 'street', 'no', 'onion', 'garlic',
+    'jain', 'without', 'veg', 'vegetable', 'mix', 'mixed'];
+  /** Spellings of the same dish word (applied after a plural "s" is dropped). */
+  private const NAME_SYNONYMS = ['spinach' => 'palak', 'omelet' => 'omelette', 'omlet' => 'omelette',
+    'cheela' => 'chilla', 'chila' => 'chilla', 'daal' => 'dal', 'dhal' => 'dal', 'dhaal' => 'dal', 'lentil' => 'dal',
+    'chapati' => 'roti', 'chapathi' => 'roti', 'curd' => 'dahi', 'yogurt' => 'dahi', 'yoghurt' => 'dahi',
+    'chickpea' => 'chana', 'chole' => 'chana', 'chhole' => 'chana', 'chane' => 'chana', 'channa' => 'chana',
+    'potato' => 'aloo', 'cauliflower' => 'gobi', 'gobhi' => 'gobi', 'kebab' => 'kabab', 'sabji' => 'sabzi',
+    'subzi' => 'sabzi', 'subji' => 'sabzi'];
+  /** Main ingredients: a shuffle never follows a dish with another of the same one (paneer after paneer). */
+  private const KEY_INGREDIENTS = ['paneer', 'tofu', 'soya', 'chana', 'rajma', 'dal', 'moong', 'masoor', 'urad',
+    'egg', 'omelette', 'mushroom', 'palak', 'aloo', 'gobi', 'chicken', 'fish', 'mutton', 'prawn', 'oats', 'besan',
+    'cheese', 'corn', 'quinoa', 'chaap'];
+  /** recipe id => its name words, filled as shuffles need them. */
+  private array $nameWords = [];
+
   /** Score jitter source; defaults to mt_rand(0..500)/100. Injectable for golden tests. */
   private $jitter;
 
@@ -477,28 +502,100 @@ class PlanEngine
    * or null if none does. The pool is kid-friendly dishes of any meal type for a kid
    * add-on, bread/rice for a side, else mains of the item's meal type.
    * $planRecipeIds (every recipe in the plan) are excluded so the pick is genuinely
-   * new, and so is the slot's own shuffle_history: without it, a recipe shuffled
-   * away is eligible again on the very next tap (it's no longer "in the plan" once
-   * replaced), and since the top-scored shortlist barely changes between calls, a
-   * few taps would cycle right back to it. Both exclusions relax if the pool runs dry.
+   * new, and so is the slot's own shuffle_history (the last SHUFFLE_HISTORY dishes it
+   * showed): without it, a recipe shuffled away is eligible again on the very next
+   * tap, and since the top-scored shortlist barely changes between calls, a few taps
+   * would cycle right back to it. The pick also shouldn't look like what the user just
+   * saw (freshDishes). Each of these relaxes in turn if the pool runs dry.
    */
   private function pickReplacement(array $item, array $prefs, array $planRecipeIds): ?array
   {
     $rules = $prefs['day_rules'][weekdayKey((int)$item['day_of_week'])];
+    $isSide = ($item['slot_role'] ?? 'main') === 'side';
     if ((int)$item['is_kid_addon'] === 1) {
       $basePool = $this->kidPool;
-    } elseif (($item['slot_role'] ?? 'main') === 'side') {
+    } elseif ($isSide) {
       $basePool = $this->accompanimentPool;
     } else {
       $basePool = $this->byMealType[$item['meal_type']] ?? [];
     }
     $pool = $this->filterByRules($basePool, $rules);
     $carb = (int)$prefs['carb_ceiling_g'];
+    $history = self::shuffleHistory($item);
+    $k = self::SHUFFLE_TOP_K;
 
-    $excludeWithHistory = array_values(array_unique(array_merge($planRecipeIds, self::shuffleHistory($item))));
-    return $this->selectRandomTop($pool, [], $carb, $excludeWithHistory)
-      ?? $this->selectRandomTop($pool, [], $carb, $planRecipeIds)
-      ?? $this->selectRandomTop($pool, [], $carb, [(int)$item['recipe_id']]);
+    $excludeWithHistory = array_values(array_unique(array_merge($planRecipeIds, $history)));
+    $recent = array_merge([(int)$item['recipe_id']], array_slice($history, 0, self::SIMILAR_WINDOW - 1));
+    return $this->selectRandomTop($this->freshDishes($pool, $recent, $isSide), [], $carb, $excludeWithHistory, $k)
+      ?? $this->selectRandomTop($pool, [], $carb, $excludeWithHistory, $k)
+      ?? $this->selectRandomTop($pool, [], $carb, $planRecipeIds, $k)
+      ?? $this->selectRandomTop($pool, [], $carb, [(int)$item['recipe_id']], $k);
+  }
+
+  /**
+   * $pool without look-alikes of the $recent dishes (the current one first): no name
+   * that is mostly the same words, or contained in the other ("Palak Paneer" after
+   * "Jain Palak Paneer"), no second roti or pulao in a row for a side, and nothing
+   * sharing the current dish's main ingredient (paneer after paneer). The catalogue
+   * holds the same dish from several channels, and the score favours paneer, so
+   * without this a run of shuffles looks like the same dish over and over.
+   */
+  private function freshDishes(array $pool, array $recent, bool $isSide): array
+  {
+    $seen = [];
+    foreach ($recent as $id) {
+      if (isset($this->recipeById[$id])) {
+        $seen[] = $this->dishWords($id);
+      }
+    }
+    if (!$seen) {
+      return $pool;
+    }
+    $currentKeys = array_intersect($seen[0], self::KEY_INGREDIENTS);
+    return array_values(array_filter($pool, function ($r) use ($seen, $currentKeys, $isSide) {
+      $words = $this->dishWords($r['id']);
+      if (array_intersect($currentKeys, $words)) {
+        return false;
+      }
+      foreach ($seen as $s) {
+        if (self::similarDishes($words, $s, $isSide)) {
+          return false;
+        }
+      }
+      return true;
+    }));
+  }
+
+  /** The words of a recipe's name that identify the dish (NAME_FILLER dropped, NAME_SYNONYMS merged), in order. */
+  private function dishWords(int $id): array
+  {
+    if (!isset($this->nameWords[$id])) {
+      $words = [];
+      foreach (preg_split('/[^a-z]+/', strtolower((string)($this->recipeById[$id]['name'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) as $w) {
+        if (strlen($w) > 3 && substr($w, -1) === 's' && substr($w, -2) !== 'ss') {
+          $w = substr($w, 0, -1);
+        }
+        $w = self::NAME_SYNONYMS[$w] ?? $w;
+        if (strlen($w) > 1 && !in_array($w, self::NAME_FILLER, true) && !in_array($w, $words, true)) {
+          $words[] = $w;
+        }
+      }
+      $this->nameWords[$id] = $words;
+    }
+    return $this->nameWords[$id];
+  }
+
+  /** Do two dishes look alike: one name within the other, half their words shared, or (sides) the same last word? */
+  private static function similarDishes(array $a, array $b, bool $isSide): bool
+  {
+    if (!$a || !$b) {
+      return false;
+    }
+    $common = count(array_intersect($a, $b));
+    if ($common === min(count($a), count($b)) || $common * 2 >= count(array_unique(array_merge($a, $b)))) {
+      return true;
+    }
+    return $isSide && $a[count($a) - 1] === $b[count($b) - 1];
   }
 
   /** The recipe ids a slot has shown via shuffle, newest first. */
@@ -515,7 +612,7 @@ class PlanEngine
    */
   private function replaceItemRecipe(array $item, array $pick): string
   {
-    $history = array_slice(array_unique(array_merge([(int)$item['recipe_id']], self::shuffleHistory($item))), 0, 6);
+    $history = array_slice(array_unique(array_merge([(int)$item['recipe_id']], self::shuffleHistory($item))), 0, self::SHUFFLE_HISTORY);
     $mealType = (int)$item['is_kid_addon'] === 1 ? $pick['meal_type'] : $item['meal_type'];
     $this->db->execute(
       "UPDATE meal_plan_items SET recipe_id = ?, meal_type = ?, shuffle_history = ? WHERE id = ?",

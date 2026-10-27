@@ -230,7 +230,7 @@ function importPlans()
         $servings = max(1, min(12, (int)($it['servings'] ?? 1)));
         $db->insert($itemSql, [
           $planId, $dow, $mealType, $recipeId, $isKid ? 1 : 0, $role, $servings,
-          $history ? json_encode(array_slice($history, 0, 6)) : null,
+          $history ? json_encode(array_slice($history, 0, PlanEngine::SHUFFLE_HISTORY)) : null,
         ]);
         $inserted++;
       }
